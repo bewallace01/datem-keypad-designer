@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keypad Designer · AI-assisted DAT/EM keypad layouts for stereo compilation</title>
+  <meta name="description" content="Configure DAT/EM Summit Evolution keypad buttons in plain English. AI-generated AutoCAD Civil 3D macros for aerial photogrammetry stereo compilation.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0d12;
+      --bg-elev: #11151c;
+      --bg-elev-2: #1a1f29;
+      --border: #232936;
+      --border-strong: #323a4d;
+      --text: #e8ecf3;
+      --text-dim: #8b93a3;
+      --text-faint: #5a6273;
+      --accent: #5ba2f7;
+      --c-summit: #a78bfa;
+      --c-cad: #5ba2f7;
+      --c-capture: #5fce9d;
+      --c-mixed: #f0b56a;
+      --c-osnap: #f47272;
+      --c-layer: #ec7cd1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: "JetBrains Mono", monospace; }
+
+    /* NAV */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: rgba(10, 13, 18, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .logo-mark {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, var(--accent), var(--c-summit));
+      display: grid; place-items: center;
+      color: #0a0d12;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .nav-links { display: flex; gap: 24px; margin-left: auto; align-items: center; }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.12s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .btn-launch {
+      background: linear-gradient(135deg, var(--accent), var(--c-summit));
+      color: white;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      transition: opacity 0.12s, transform 0.08s;
+    }
+    .btn-launch:hover { opacity: 0.92; }
+    .btn-launch:active { transform: translateY(1px); }
+
+    /* HERO */
+    .hero {
+      padding: 140px 24px 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(91, 162, 247, 0.12), transparent 50%),
+        radial-gradient(circle at 70% 80%, rgba(167, 139, 250, 0.12), transparent 50%);
+      pointer-events: none;
+    }
+    .hero-tag {
+      display: inline-block;
+      padding: 6px 14px;
+      background: rgba(91, 162, 247, 0.1);
+      border: 1px solid rgba(91, 162, 247, 0.25);
+      border-radius: 100px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.05;
+      margin: 0 0 24px;
+      max-width: 880px;
+      margin-left: auto;
+      margin-right: auto;
+      position: relative;
+      z-index: 1;
+    }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, var(--accent), var(--c-summit));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      font-size: clamp(17px, 2vw, 20px);
+      color: var(--text-dim);
+      max-width: 640px;
+      margin: 0 auto 40px;
+      line-height: 1.5;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-cta {
+      display: inline-flex;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--c-summit));
+      color: white;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: opacity 0.12s, transform 0.08s;
+      box-shadow: 0 8px 24px rgba(91, 162, 247, 0.25);
+    }
+    .btn-primary:hover { opacity: 0.92; }
+    .btn-secondary {
+      background: var(--bg-elev);
+      color: var(--text);
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 15px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .btn-secondary:hover { border-color: var(--border-strong); background: var(--bg-elev-2); }
+
+    /* DEMO PREVIEW */
+    .demo {
+      max-width: 1100px;
+      margin: 60px auto 0;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+    .demo-window {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    }
+    .demo-bar {
+      height: 36px;
+      background: var(--bg-elev-2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 6px;
+    }
+    .demo-bar span {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--text-faint);
+      opacity: 0.4;
+    }
+    .demo-bar span:nth-child(1) { background: #f47272; }
+    .demo-bar span:nth-child(2) { background: #f0b56a; }
+    .demo-bar span:nth-child(3) { background: #5fce9d; }
+    .demo-grid {
+      padding: 32px;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 8px;
+    }
+    .demo-key {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px;
+      text-align: center;
+      position: relative;
+      transition: transform 0.4s ease;
+    }
+    .demo-key.summit  { background: rgba(167, 139, 250, 0.13); border-color: rgba(167, 139, 250, 0.4); }
+    .demo-key.cad     { background: rgba(91, 162, 247, 0.13); border-color: rgba(91, 162, 247, 0.4); }
+    .demo-key.capture { background: rgba(95, 206, 157, 0.13); border-color: rgba(95, 206, 157, 0.4); }
+    .demo-key.layer   { background: rgba(236, 124, 209, 0.13); border-color: rgba(236, 124, 209, 0.4); }
+    .demo-key.osnap   { background: rgba(244, 114, 114, 0.13); border-color: rgba(244, 114, 114, 0.4); }
+    .demo-key.mixed   { background: rgba(240, 181, 106, 0.13); border-color: rgba(240, 181, 106, 0.4); }
+    .demo-key .badge {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+    }
+    .demo-key.summit  .badge { background: var(--c-summit); }
+    .demo-key.cad     .badge { background: var(--c-cad); }
+    .demo-key.capture .badge { background: var(--c-capture); }
+    .demo-key.layer   .badge { background: var(--c-layer); }
+    .demo-key.osnap   .badge { background: var(--c-osnap); }
+    .demo-key.mixed   .badge { background: var(--c-mixed); }
+
+    /* SECTIONS */
+    section { padding: 100px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-tag {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin: 0 0 16px;
+    }
+    .section-sub {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 640px;
+      line-height: 1.6;
+    }
+
+    /* PROBLEM */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+      margin-top: 60px;
+    }
+    @media (max-width: 800px) { .problem-grid { grid-template-columns: 1fr; gap: 30px; } }
+    .code-compare {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .code-compare .label {
+      font-family: "Inter", sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .code-compare pre {
+      margin: 0;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+    .code-compare .arrow { text-align: center; color: var(--text-faint); padding: 12px 0; }
+
+    /* FEATURES */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-top: 60px;
+    }
+    .feat {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: border-color 0.12s, transform 0.12s;
+    }
+    .feat:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+    .feat-icon {
+      width: 40px; height: 40px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--c-summit));
+      display: grid; place-items: center;
+      color: white;
+      margin-bottom: 16px;
+      font-size: 18px;
+    }
+    .feat h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .feat p {
+      color: var(--text-dim);
+      margin: 0;
+      font-size: 14.5px;
+      line-height: 1.55;
+    }
+
+    /* HOW IT WORKS */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 60px;
+      counter-reset: step;
+    }
+    @media (max-width: 800px) { .steps { grid-template-columns: 1fr; } }
+    .step {
+      counter-increment: step;
+      position: relative;
+      padding-top: 50px;
+    }
+    .step::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      top: 0; left: 0;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .step::after {
+      content: "";
+      position: absolute;
+      top: 8px; left: 30px;
+      right: 0;
+      height: 1px;
+      background: var(--border);
+    }
+    .step h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .step p {
+      color: var(--text-dim);
+      font-size: 14.5px;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    /* OPEN SOURCE CTA */
+    .oss {
+      text-align: center;
+      padding: 100px 24px;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(91, 162, 247, 0.08), transparent 60%);
+    }
+    .oss h2 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    .oss p {
+      color: var(--text-dim);
+      max-width: 580px;
+      margin: 0 auto 32px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .oss-cta {
+      display: inline-flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* FOOTER */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-faint);
+      font-size: 13px;
+    }
+    footer a { color: var(--text-dim); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    .footer-credit {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-faint);
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <div class="logo-mark">K</div>
+      <span>Keypad Designer</span>
+    </a>
+    <div class="nav-links">
+      <a href="#why">Why</a>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="https://github.com/YOUR-USERNAME/datem-keypad-designer" target="_blank">GitHub</a>
+      <a href="index.html" class="btn-launch">Launch app →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <span class="hero-tag">For aerial photogrammetry compilers</span>
+  <h1>Configure your DAT/EM keypad in <span class="gradient">plain English</span>.</h1>
+  <p class="hero-sub">
+    AI-assisted button designer for stereo compilation in DAT/EM Summit Evolution + AutoCAD Civil 3D. Describe what each button should do — it writes the macro syntax for you.
+  </p>
+  <div class="hero-cta">
+    <a href="index.html" class="btn-primary">Launch the app →</a>
+    <a href="https://github.com/YOUR-USERNAME/datem-keypad-designer" class="btn-secondary" target="_blank">View on GitHub</a>
+  </div>
+
+  <div class="demo">
+    <div class="demo-window">
+      <div class="demo-bar">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="demo-grid">
+        <div class="demo-key summit"><span class="badge"></span>Driver</div>
+        <div class="demo-key summit"><span class="badge"></span>Raise Z</div>
+        <div class="demo-key summit"><span class="badge"></span>Lower Z</div>
+        <div class="demo-key summit"><span class="badge"></span>Z Lock</div>
+        <div class="demo-key summit"><span class="badge"></span>Z Unlock</div>
+        <div class="demo-key summit"><span class="badge"></span>Auto Level</div>
+        <div class="demo-key summit"><span class="badge"></span>Zoom In</div>
+        <div class="demo-key summit"><span class="badge"></span>Zoom Out</div>
+
+        <div class="demo-key"><span class="badge"></span>Cancel</div>
+        <div class="demo-key cad"><span class="badge"></span>3D Poly</div>
+        <div class="demo-key cad"><span class="badge"></span>Feature Line</div>
+        <div class="demo-key cad"><span class="badge"></span>COGO Point</div>
+        <div class="demo-key capture"><span class="badge"></span>End Feat</div>
+        <div class="demo-key capture"><span class="badge"></span>Undo Vtx</div>
+        <div class="demo-key"></div>
+        <div class="demo-key"></div>
+
+        <div class="demo-key layer"><span class="badge"></span>Building</div>
+        <div class="demo-key layer"><span class="badge"></span>Road EOP</div>
+        <div class="demo-key layer"><span class="badge"></span>Road CL</div>
+        <div class="demo-key layer"><span class="badge"></span>Curb</div>
+        <div class="demo-key layer"><span class="badge"></span>Driveway</div>
+        <div class="demo-key layer"><span class="badge"></span>Sidewalk</div>
+        <div class="demo-key layer"><span class="badge"></span>Fence</div>
+        <div class="demo-key layer"><span class="badge"></span>Hydro Edge</div>
+
+        <div class="demo-key mixed"><span class="badge"></span>Breakline</div>
+        <div class="demo-key mixed"><span class="badge"></span>Spot Elev</div>
+        <div class="demo-key layer"><span class="badge"></span>Vegetation</div>
+        <div class="demo-key layer"><span class="badge"></span>Obscure</div>
+        <div class="demo-key osnap"><span class="badge"></span>Endpoint</div>
+        <div class="demo-key osnap"><span class="badge"></span>Intersect</div>
+        <div class="demo-key osnap"><span class="badge"></span>Nearest</div>
+        <div class="demo-key osnap"><span class="badge"></span>Snap None</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WHY -->
+<section id="why">
+  <div class="container">
+    <div class="section-tag">The Problem</div>
+    <h2 class="section-title">Macro syntax is brutal.<br>You shouldn't have to memorize it.</h2>
+
+    <div class="problem-grid">
+      <div>
+        <p style="color: var(--text-dim); line-height: 1.7;">
+          Setting up a DAT/EM keypad means writing AutoCAD macros by hand. Every prefix matters: <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">^C^C</span> cancels any running command, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">_</span> makes commands language-independent, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">-</span> suppresses dialogs (critical — a popped dialog interrupts your active drawing command), <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">'</span> makes a command transparent, and semicolons act as Enter.
+        </p>
+        <p style="color: var(--text-dim); line-height: 1.7;">
+          For the operator who lives in this syntax, fine. For the rest of us, it's painful. Mistakes are silent and only surface when the button doesn't work the way you want during a stereo session.
+        </p>
+        <p style="color: var(--text-dim); line-height: 1.7;">
+          So: describe the button in plain English. Get correct syntax back. Move on.
+        </p>
+      </div>
+      <div class="code-compare">
+        <div class="label">You write</div>
+        <pre>"switch to ROAD_EOP layer
+and start a 3D polyline"</pre>
+        <div class="arrow">↓</div>
+        <div class="label">It generates</div>
+<pre style="color:var(--c-cad)">^C^C-LAYER;S;ROAD_EOP;;
+_3DPOLY</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" style="background: var(--bg-elev);">
+  <div class="container">
+    <div class="section-tag">Features</div>
+    <h2 class="section-title">Built for stereo compilation workflow.</h2>
+    <p class="section-sub">The AI knows DAT/EM Summit keywords, AutoCAD Civil 3D commands, OSNAP transparency, and the rules of stereo digitizing — so the macros it produces actually work mid-session.</p>
+
+    <div class="features">
+      <div class="feat">
+        <div class="feat-icon">✨</div>
+        <h3>Plain English → macros</h3>
+        <p>Describe a button. Get correctly-formatted DAT/EM macros back, with a label, color category, and an explanatory note.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">📋</div>
+        <h3>Per-project context</h3>
+        <p>Paste your feature code library once. The AI uses your real layer names — <span class="mono" style="font-size:13px">ROAD_EOP</span>, <span class="mono" style="font-size:13px">BREAKLINE</span>, <span class="mono" style="font-size:13px">HYDRO_EDGE</span> — instead of generic placeholders.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">⚡</div>
+        <h3>Auto-fill layouts</h3>
+        <p>Generate a complete keypad in one click. Summit controls up top, drawing tools, layer switches by feature class, OSNAPs at the bottom. Smart pairings (BREAKLINE auto-starts a feature line).</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🗂</div>
+        <h3>Project switching</h3>
+        <p>One layout per job. Switch between them without losing work. Duplicate a project to seed a new one with similar conventions.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🎨</div>
+        <h3>Color-coded categories</h3>
+        <p>Summit, AutoCAD, Capture, OSNAP, layer switch, mixed macro. Visual grouping so the operator's eye lands on the right button fast.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">📄</div>
+        <h3>Reference export</h3>
+        <p>Print-ready text reference grouped by category, plus JSON backups. Side-by-side with the actual DAT/EM Keypad Editor for fast data entry.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-tag">How it works</div>
+    <h2 class="section-title">Three steps from blank to ready.</h2>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Set up project context</h3>
+        <p>Paste your feature code library — <span class="mono" style="font-size:13px;color:var(--text)">BLDG</span>, <span class="mono" style="font-size:13px;color:var(--text)">ROAD_EOP</span>, <span class="mono" style="font-size:13px;color:var(--text)">CURB</span>, etc. — with what each represents. The AI uses these exact names everywhere.</p>
+      </div>
+      <div class="step">
+        <h3>Auto-fill or hand-craft</h3>
+        <p>Click ✨ Auto-fill to generate a complete starter layout. Or click any button to add it manually with AI-assisted command generation.</p>
+      </div>
+      <div class="step">
+        <h3>Export and apply</h3>
+        <p>Export a clean reference doc grouped by category. Open it on a second monitor next to the DAT/EM Keypad Editor and copy buttons across.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OPEN SOURCE CTA -->
+<div class="oss">
+  <h2>MIT-licensed and open to contributions.</h2>
+  <p>Built for the photogrammetry and surveying community. Fork it, adapt the AI prompts to your CAD environment, or contribute back. Issues and PRs welcome.</p>
+  <div class="oss-cta">
+    <a href="index.html" class="btn-primary">Launch the app →</a>
+    <a href="https://github.com/YOUR-USERNAME/datem-keypad-designer" class="btn-secondary" target="_blank">★ Star on GitHub</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <a href="https://github.com/YOUR-USERNAME/datem-keypad-designer">GitHub</a>
+    &nbsp;·&nbsp;
+    <a href="index.html">Launch app</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/YOUR-USERNAME/datem-keypad-designer/blob/main/README.md">Docs</a>
+  </div>
+  <div class="footer-credit">
+    Built by <a href="https://lightspacelabs.com">Lightspace Labs</a> · MIT License · Not affiliated with DAT/EM or Autodesk
+  </div>
+</footer>
+
+</body>
+</html>
