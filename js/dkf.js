@@ -25,10 +25,18 @@ function hexToRgb(hex) {
 }
 
 // AutoCAD-style macro -> DAT/EM .dkf macro.
+// DAT/EM Keypad Controller types macros into AutoCAD via SendKeys-style
+// keystroke injection, so AutoCAD's CUI `^C` (Ctrl+C) convention is not
+// honored — `^C^C-LAYER;S;NAME;;` arrives at the command line as the literal
+// string `^C^C-LAYER`, fails, and then `S` triggers STRETCH. Translate both
+// `^C^C` and lone `^C` into DAT/EM's keystroke token `{ESC}` (the Cancel key).
 // `;` and newlines both become {RET}; the line must end in {RET}.
 export function macroToDkf(commands) {
   if (!commands) return "";
-  let out = commands.replace(/[;\n]/g, "{RET}");
+  let out = commands
+    .replace(/\^C\^C/g, "{ESC}{ESC}")
+    .replace(/\^C/g, "{ESC}")
+    .replace(/[;\n]/g, "{RET}");
   if (!out.endsWith("{RET}")) out += "{RET}";
   return out;
 }

@@ -19,8 +19,13 @@ const DKF_COLS = 14;
 // Reverse of macroToDkf in dkf.js. The forward direction collapses both
 // `;` (Enter) and `\n` (chained command) into {RET}; we restore as `;`
 // because we can't tell them apart. The macro is functionally equivalent.
+// `{ESC}` is DAT/EM's Cancel keystroke; map it back to the AutoCAD-style
+// `^C^C` cancel that the editor and the rest of the codebase use.
 function dkfToMacro(data) {
-  return data.replace(/\{RET\}/g, ";");
+  return data
+    .replace(/\{ESC\}\{ESC\}/g, "^C^C")
+    .replace(/\{ESC\}/g, "^C^C")
+    .replace(/\{RET\}/g, ";");
 }
 
 function parseRgb(s) {
