@@ -48,27 +48,18 @@
       <button id="redoBtn" class="icon" onclick="doRedo()" title="Redo (Cmd/Ctrl + Shift + Z, or Cmd/Ctrl + Y)" disabled><span data-icon="rotateRight"></span></button>
     </div>
     <div class="group">
-      <label>Rows</label>
+      <label title="DAT/EM Keypad Controller is fixed at 14 columns × 18 rows. Smaller grids are fine for partial overlays — on export the .dkf gets padded to 14 × 18.">Rows</label>
       <div class="stepper">
         <button onclick="changeGrid(-1, 0)">−</button>
-        <input type="number" id="rowsInput" min="1" max="20" readonly>
+        <input type="number" id="rowsInput" min="1" max="18" readonly>
         <button onclick="changeGrid(1, 0)">+</button>
       </div>
       <label style="margin-left:8px">Cols</label>
       <div class="stepper">
         <button onclick="changeGrid(0, -1)">−</button>
-        <input type="number" id="colsInput" min="1" max="20" readonly>
+        <input type="number" id="colsInput" min="1" max="14" readonly>
         <button onclick="changeGrid(0, 1)">+</button>
       </div>
-    </div>
-    <div class="group">
-      <label>Preset</label>
-      <select onchange="applyPreset(this.value); this.value=''">
-        <option value="">Apply size...</option>
-        <option value="6,8">6 × 8 (small overlay)</option>
-        <option value="9,12">9 × 12 (medium overlay)</option>
-        <option value="18,14">18 × 14 (full DAT/EM keypad, 252 buttons)</option>
-      </select>
     </div>
     <div class="group">
       <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD</button>

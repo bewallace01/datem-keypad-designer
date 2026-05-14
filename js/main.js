@@ -253,25 +253,14 @@ function clampSpansToGrid(p) {
 
 async function changeGrid(dRows, dCols) {
   const p = curr();
-  const newRows = Math.max(1, Math.min(20, p.rows + dRows));
-  const newCols = Math.max(1, Math.min(20, p.cols + dCols));
+  // Clamp to DAT/EM Keypad Controller's physical size: 14 cols × 18 rows.
+  // Anything larger wouldn't round-trip through .dkf export.
+  const newRows = Math.max(1, Math.min(18, p.rows + dRows));
+  const newCols = Math.max(1, Math.min(14, p.cols + dCols));
   if (newRows === p.rows && newCols === p.cols) return;
   recordChange();
   p.rows = newRows;
   p.cols = newCols;
-  clampSpansToGrid(p);
-  await persist();
-  renderAll();
-}
-
-async function applyPreset(val) {
-  if (!val) return;
-  const [r, c] = val.split(",").map(Number);
-  const p = curr();
-  if (p.rows === r && p.cols === c) return;
-  recordChange();
-  p.rows = r;
-  p.cols = c;
   clampSpansToGrid(p);
   await persist();
   renderAll();
@@ -1607,7 +1596,6 @@ Object.assign(window, {
   duplicateProject,
   deleteProject,
   changeGrid,
-  applyPreset,
   clearAll,
   openContext,
   saveContext,
