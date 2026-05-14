@@ -24,7 +24,7 @@ import { buildDkfExport, dkfClampWarning, dkfFilename } from "./dkf.js";
 import { buildZip } from "./zip.js";
 import { dataUrlToBytes } from "./bmp.js";
 import { parseDkf, summarizeDropped } from "./dkf-import.js";
-import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings } from "./dxf-import.js";
+import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings, DEFAULT_CONTROL_BUTTONS, DEFAULT_CONTROLS_NEXT_ROW } from "./dxf-import.js";
 import { renderBlockPreview } from "./block-render.js";
 import { parseDwgFile } from "./dwg-import.js";
 import { cellOwnerMap } from "./state.js";
@@ -1060,10 +1060,11 @@ async function dxfExportReport() {
 async function dxfGenerate() {
   const p = curr();
   const fillMode = document.getElementById("dxfFillMode").value;
-  const startRow = Math.max(0, parseInt(document.getElementById("dxfStartRow").value, 10) || 0);
+  let startRow = Math.max(0, parseInt(document.getElementById("dxfStartRow").value, 10) || 0);
   const includeTool = document.getElementById("dxfIncludeTool").checked;
   const includeHeaders = document.getElementById("dxfIncludeHeaders").checked;
   const linkBlocks = document.getElementById("dxfLinkBlocks").checked;
+  const includeControls = document.getElementById("dxfIncludeControls").checked;
   const selected = dxfLayers.filter((l) => l._selected);
   const selectedBlocks = dxfBlocks.filter((b) => b._selected);
   if (!selected.length && !selectedBlocks.length) return;
@@ -1083,6 +1084,24 @@ async function dxfGenerate() {
     for (let dc = 0; dc < w; dc++) if (owner[`${r},${c + dc}`]) return false;
     return true;
   };
+
+  // Prepend the default control buttons (Summit + Capture + OSNAP) at the top
+  // before any layer placement. Skip cells that are already occupied (so the
+  // option is safe in "fill empty only" mode) and any column that falls
+  // outside the user's grid width. Bump startRow so layer placement begins
+  // below the controls block.
+  let controlsPlaced = 0;
+  if (includeControls) {
+    for (const ctl of DEFAULT_CONTROL_BUTTONS) {
+      if (ctl.col >= p.cols || ctl.row >= p.rows) continue;
+      if (!isFree(ctl.row, ctl.col)) continue;
+      const key = `${ctl.row},${ctl.col}`;
+      p.buttons[key] = { label: ctl.label, color: ctl.color, commands: ctl.commands, notes: ctl.notes };
+      claim(ctl.row, ctl.col, key);
+      controlsPlaced++;
+    }
+    if (controlsPlaced) startRow = Math.max(startRow, DEFAULT_CONTROLS_NEXT_ROW);
+  }
 
   // Group selected layers by category, then place section by section. Each
   // section starts on a fresh row with an optional 2-wide colored header,
@@ -1165,9 +1184,10 @@ async function dxfGenerate() {
   await persist();
   renderAll();
   closeModal("dxfImportModal");
-  const total = placed + blocksPlaced;
+  const total = placed + blocksPlaced + controlsPlaced;
   let summary = `Placed ${total} button${total === 1 ? "" : "s"}`;
-  if (blocksPlaced) summary += ` (${placed} layer + ${blocksPlaced} block)`;
+  if (controlsPlaced) summary += ` (${controlsPlaced} control + ${placed} layer + ${blocksPlaced} block)`;
+  else if (blocksPlaced) summary += ` (${placed} layer + ${blocksPlaced} block)`;
   if (headersAdded) summary += `, ${headersAdded} section header${headersAdded === 1 ? "" : "s"}`;
   if (leftover) summary += `, ${leftover} didn't fit (grow the grid or use replace mode)`;
   toast(summary);

@@ -457,6 +457,56 @@ export const CATEGORY_LABELS = {
 // Group order — display roads first, generic "layer" bucket last.
 export const CATEGORY_ORDER = ["roads", "utility", "dtm", "layer"];
 
+// Workflow-order priorities used to sort layers within each category before
+// they get packed into the grid. Lower number = earlier in the row. Matches
+// the typical mental order an operator uses during stereo compilation:
+// centerline before edge, primary utility before incidentals, breaklines
+// before spots. Unknown patterns fall to the end alphabetically (priority
+// 999) so the ordering is stable for layers we don't recognize.
+const WORKFLOW_PRIORITY = [
+  // Roads — collect from centerline outward
+  [/\b(ROAD_?CL|RDCL|CENTERLINE|CL)\b/, 10],
+  [/\b(ROAD_?EOP|EOP|EDGE)\b/,           20],
+  [/\b(CURB|GUTTER)\b/,                   30],
+  [/\b(DRIVE|DRIVEWAY|DRWY)\b/,           40],
+  [/\b(SIDEWALK|SDWK|WALK)\b/,            50],
+  [/\b(PAVE|PAVEMENT)\b/,                 60],
+  [/\b(PARK|PARKING|LOT)\b/,              70],
+  [/\b(TRAFF|MEDIAN|ISLAND)\b/,           80],
+  [/\b(FENCE|WALL|GUARD)\b/,              90],
+  // Utility — power/comm above ground, then wet utilities
+  [/\b(POWR|POWER|ELEC)\b/,              110],
+  [/\b(POLE|GUY)\b/,                     120],
+  [/\b(COMM|TELE|TELCO|FIBER)\b/,        130],
+  [/\b(WATR|WATER|HYDR|HYDRANT)\b/,      140],
+  [/\b(SSWR|SEWER|SANI)\b/,              150],
+  [/\b(STRM|STORM)\b/,                   160],
+  [/\b(GAS|FUEL)\b/,                     170],
+  [/\b(MH|MNHL|MANHOLE|VLV|VALVE)\b/,    180],
+  // DTM — surface inputs in collection order
+  [/\b(BRKL|BREAKLINE|RIDGE|DRAIN)\b/,   210],
+  [/\b(SPOT|SPOTS)\b/,                   220],
+  [/\b(CONT|CONTOUR)\b/,                 230],
+  [/\b(MASS|MASSP)\b/,                   240],
+  [/\b(OBSCURE|OBSC)\b/,                 250],
+  [/\b(SURF|SURFACE|DTM|TOPO)\b/,        260],
+];
+
+function workflowOrderKey(name) {
+  const n = (name || "").toUpperCase();
+  for (const [re, p] of WORKFLOW_PRIORITY) if (re.test(n)) return p;
+  return 999;
+}
+
+function sortLayersByWorkflow(layers) {
+  return [...layers].sort((a, b) => {
+    const pa = workflowOrderKey(a.name);
+    const pb = workflowOrderKey(b.name);
+    if (pa !== pb) return pa - pb;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export function groupLayersByCategory(layers) {
   const groups = {};
   for (const l of layers) {
@@ -466,5 +516,46 @@ export function groupLayersByCategory(layers) {
   // Sort group keys: known order first, then anything else alphabetically.
   const known = CATEGORY_ORDER.filter((c) => groups[c]);
   const rest = Object.keys(groups).filter((c) => !CATEGORY_ORDER.includes(c)).sort();
-  return [...known, ...rest].map((c) => ({ category: c, layers: groups[c] }));
+  return [...known, ...rest].map((c) => ({
+    category: c,
+    layers: sortLayersByWorkflow(groups[c]),
+  }));
 }
+
+// Default control buttons prepended to DWG/DXF imports — Summit stereo
+// controls, drawing tools, Capture call-commands, and OSNAP toggles. Two rows
+// at the top, no project-specific layer references. Operators can edit/move
+// these like any other button. Buttons whose column exceeds the user's grid
+// width are skipped silently (no overflow). Rows used: 0 and 1.
+export const DEFAULT_CONTROL_BUTTONS = [
+  // Row 0 — Summit stereo controls + view nav
+  { row: 0, col: 0,  label: "Driver",     color: "summit",  commands: "Driver",             notes: "Accept point at cursor (Summit's most-used keyword)" },
+  { row: 0, col: 1,  label: "Raise Z",    color: "summit",  commands: "RaiseZ",             notes: "Move stereo cursor up in elevation" },
+  { row: 0, col: 2,  label: "Lower Z",    color: "summit",  commands: "LowerZ",             notes: "Move stereo cursor down in elevation" },
+  { row: 0, col: 3,  label: "Z Lock",     color: "summit",  commands: "ZLock",              notes: "Lock cursor at constant Z (roofs, water surfaces)" },
+  { row: 0, col: 4,  label: "Z Unlock",   color: "summit",  commands: "ZUnlock",            notes: "Release Z lock" },
+  { row: 0, col: 5,  label: "Auto Level", color: "summit",  commands: "AutoLevel",          notes: "Auto-level cursor on ground" },
+  { row: 0, col: 6,  label: "Zoom In",    color: "summit",  commands: "ZoomIn",             notes: "Image zoom in" },
+  { row: 0, col: 7,  label: "Zoom Out",   color: "summit",  commands: "ZoomOut",            notes: "Image zoom out" },
+  { row: 0, col: 8,  label: "Next Pair",  color: "summit",  commands: "NextStereoPair",     notes: "Move to next stereo pair" },
+  { row: 0, col: 9,  label: "Prev Pair",  color: "summit",  commands: "PreviousStereoPair", notes: "Move to previous stereo pair" },
+  { row: 0, col: 10, label: "Model Ext",  color: "summit",  commands: "ModelExtents",       notes: "Zoom to current model extents" },
+  { row: 0, col: 11, label: "Recenter",   color: "summit",  commands: "Recenter",           notes: "Recenter cursor in view" },
+  // Row 1 — Drawing tools, Capture call-commands, OSNAP toggles
+  { row: 1, col: 0,  label: "Cancel",     color: "neutral", commands: "^C^C",               notes: "Cancel any running command" },
+  { row: 1, col: 1,  label: "Auto Arc",   color: "capture", commands: "AUTOARC3D",          notes: "DAT/EM Capture 3D auto-arc — default linear collection" },
+  { row: 1, col: 2,  label: "Feat Line",  color: "cad",     commands: "^C^C_AECCDRAWFEATURELINES", notes: "Civil 3D feature line (use for breaklines)" },
+  { row: 1, col: 3,  label: "COGO Point", color: "cad",     commands: "^C^C_AECCCREATEPTMANUAL",   notes: "Civil 3D COGO point (good for spot elevations)" },
+  { row: 1, col: 4,  label: "End Feat",   color: "capture", commands: "CallCmd EndFeature",        notes: "End the current feature being collected" },
+  { row: 1, col: 5,  label: "Undo Vtx",   color: "capture", commands: "CallCmd UndoLastVertex",    notes: "Back up one vertex on active feature" },
+  { row: 1, col: 6,  label: "PSQR 2D",    color: "capture", commands: "PSQR2D",                    notes: "DAT/EM place-square — auto-orthogonal corners for buildings" },
+  { row: 1, col: 7,  label: "Endpoint",   color: "osnap",   commands: "'_-osnap;end",              notes: "Transparent OSNAP to endpoint" },
+  { row: 1, col: 8,  label: "Intersect",  color: "osnap",   commands: "'_-osnap;int",              notes: "Transparent OSNAP to intersection" },
+  { row: 1, col: 9,  label: "Midpoint",   color: "osnap",   commands: "'_-osnap;mid",              notes: "Transparent OSNAP to midpoint" },
+  { row: 1, col: 10, label: "Nearest",    color: "osnap",   commands: "'_-osnap;nea",              notes: "Transparent OSNAP to nearest" },
+  { row: 1, col: 11, label: "Snap None",  color: "osnap",   commands: "'_-osnap;none",             notes: "Turn off OSNAP" },
+];
+
+// One row past the last default-control row; layer placement should start
+// here when the controls block is enabled.
+export const DEFAULT_CONTROLS_NEXT_ROW = 2;
