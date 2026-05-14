@@ -3,7 +3,7 @@
 // for the inline onclick attributes in index.html.
 
 import { state, curr, newId, init, persist, recordChange, resetHistory, undo, redo, canUndo, canRedo } from "./state.js";
-import { renderAll, toast, openModal, closeModal, setButtonClickHandler, setSelectionChangeHandler, setCellDropHandler, getSelection, clearSelection } from "./ui.js";
+import { renderAll, toast, openModal, closeModal, setButtonClickHandler, setSelectionChangeHandler, setCellDropHandler, getSelection, clearSelection, escapeHtml } from "./ui.js";
 import {
   openEdit,
   closeSide,
@@ -34,6 +34,7 @@ import { initDrawIcon, getResult as getDrawnIconResult, hasInk as drawHasInk } f
 import { makeBitmapName } from "./bmp.js";
 import { COLORS } from "./state.js";
 import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
+import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySeverity, RULES } from "./lint.js";
 
 let exportMode = "text";
 
@@ -392,6 +393,155 @@ async function saveContext() {
   await persist();
   closeModal("contextModal");
   toast("Project context saved");
+}
+
+// =========================================================================
+// LINT MODAL
+// =========================================================================
+// Cached findings so the per-row "Fix" and "Open" buttons can look them up
+// by id without re-running lint between render and click.
+let lintFindings = [];
+
+function openLint() {
+  renderLintModal();
+  openModal("lintModal");
+}
+
+function renderLintModal() {
+  const p = curr();
+  lintFindings = findProjectIssues(p);
+
+  const body = document.getElementById("lintBody");
+  const chip = document.getElementById("lintCountChip");
+  const fixAllBtn = document.getElementById("lintFixAllBtn");
+  const fixableCount = lintFindings.filter((f) => f.fix).length;
+
+  if (!lintFindings.length) {
+    chip.textContent = "";
+    fixAllBtn.disabled = true;
+    body.innerHTML = `
+      <div class="lint-empty">
+        <strong>Looks good — no findings.</strong>
+        Every configured button passes the static checks.
+      </div>`;
+    return;
+  }
+
+  const counts = countWarningsBySeverity({ _: lintFindings.map((f) => ({ level: f.level })) });
+  const parts = [];
+  if (counts.warn) parts.push(`${counts.warn} warning${counts.warn === 1 ? "" : "s"}`);
+  if (counts.info) parts.push(`${counts.info} note${counts.info === 1 ? "" : "s"}`);
+  chip.textContent = `· ${parts.join(", ")}`;
+  fixAllBtn.disabled = !fixableCount;
+  fixAllBtn.textContent = fixableCount
+    ? `Auto-fix everything safe (${fixableCount})`
+    : "Auto-fix everything safe";
+
+  const byRule = new Map();
+  for (const f of lintFindings) {
+    const list = byRule.get(f.ruleId || "_uncategorized") || [];
+    list.push(f);
+    byRule.set(f.ruleId || "_uncategorized", list);
+  }
+
+  const sections = [];
+  for (const [ruleId, findings] of byRule) {
+    const meta = RULES[ruleId] || { label: "Other", detail: "" };
+    const hasFix = findings.some((f) => f.fix);
+    const level = findings.some((f) => f.level === "warn") ? "warn" : "info";
+    sections.push(`
+      <div class="lint-group">
+        <div class="lint-group-head severity-${level}">
+          <span class="lint-group-title">${escapeHtml(meta.label)}</span>
+          <span class="lint-group-count">${findings.length} ${findings.length === 1 ? "button" : "buttons"}</span>
+          ${hasFix
+            ? `<button class="lint-group-fix-all primary" onclick="applyLintFixAll('${ruleId}')">Fix all (${findings.filter((f) => f.fix).length})</button>`
+            : ""}
+        </div>
+        ${meta.detail ? `<p class="lint-group-detail">${escapeHtml(meta.detail)}</p>` : ""}
+        <div class="lint-findings">
+          ${findings.map(renderLintFinding).join("")}
+        </div>
+      </div>`);
+  }
+  body.innerHTML = sections.join("");
+}
+
+function renderLintFinding(f) {
+  const cellRef = `R${f.row + 1}, C${f.col + 1}`;
+  const cmdSnippet = (f.command || "").replace(/\n/g, " ⏎ ");
+  return `
+    <div class="lint-finding" data-id="${f.id}">
+      <div class="lint-finding-loc">
+        <strong>${escapeHtml(f.label || "—")}</strong>
+        <span>${cellRef}</span>
+      </div>
+      <div class="lint-finding-body">
+        <div class="lint-finding-msg">${escapeHtml(f.msg)}</div>
+        <div class="lint-finding-cmd" title="${escapeHtml(f.command)}">${escapeHtml(cmdSnippet) || "&lt;empty&gt;"}</div>
+      </div>
+      <div class="lint-finding-actions">
+        <button onclick="openLintFinding('${f.id}')" title="Open this button in the side editor">Open</button>
+        ${f.fix ? `<button class="primary" onclick="applyLintFix('${f.id}')" title="Apply the suggested fix to this button only">Fix</button>` : ""}
+      </div>
+    </div>`;
+}
+
+async function applyLintFix(id) {
+  const finding = lintFindings.find((f) => f.id === id);
+  if (!finding || !finding.fix) return;
+  recordChange();
+  const p = curr();
+  const changed = applyFix(p, finding);
+  if (!changed) {
+    toast("No change — the macro was already updated.");
+    renderLintModal();
+    return;
+  }
+  await persist();
+  renderAll();
+  renderLintModal();
+}
+
+async function applyLintFixAll(ruleId) {
+  const p = curr();
+  recordChange();
+  const n = applyAllFixesForRule(p, ruleId);
+  if (!n) { toast("Nothing to fix in that category."); return; }
+  await persist();
+  renderAll();
+  renderLintModal();
+  toast(`Fixed ${n} button${n === 1 ? "" : "s"}`);
+}
+
+async function applyAllSafeLintFixes() {
+  const p = curr();
+  recordChange();
+  let total = 0;
+  // Run rules in dependency order: replace literal {ESC}/{RET} first so later
+  // rules see editor-form macros, then case corrections, then structural
+  // fixes, then the prefix tweak.
+  const order = [
+    "literal-esc-token",
+    "case-wrong-summit-keyword",
+    "layer-not-closed",
+    "dialog-pops",
+    "osnap-not-transparent",
+    "missing-cancel-prefix",
+  ];
+  for (const r of order) total += applyAllFixesForRule(p, r);
+  if (!total) { toast("Nothing to fix."); return; }
+  await persist();
+  renderAll();
+  renderLintModal();
+  toast(`Fixed ${total} button${total === 1 ? "" : "s"}`);
+}
+
+function openLintFinding(id) {
+  const finding = lintFindings.find((f) => f.id === id);
+  if (!finding) return;
+  closeModal("lintModal");
+  openEdit(finding.row, finding.col);
 }
 
 // =========================================================================
@@ -1473,4 +1623,9 @@ Object.assign(window, {
   saveButton,
   clearButton,
   generateCommand,
+  openLint,
+  applyLintFix,
+  applyLintFixAll,
+  applyAllSafeLintFixes,
+  openLintFinding,
 });

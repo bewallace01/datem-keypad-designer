@@ -70,6 +70,7 @@
       <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD file</button>
       <button onclick="openAutofill()" title="Auto-generate a complete keypad layout from your project context" class="primary"><span class="btn-icon" data-icon="sparkles"></span>Auto-fill</button>
       <button onclick="openContext()" title="Edit project feature codes and conventions"><span class="btn-icon" data-icon="fileText"></span>Context</button>
+      <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (missing ^C^C, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
       <button onclick="clearAll()" class="danger">Clear all buttons</button>
     </div>
     <div class="spacer"></div>
@@ -636,6 +637,22 @@
     <footer>
       <button onclick="cancelModal('bulkFindModal')">Cancel</button>
       <button onclick="doBulkFindReplace()" class="primary">Replace</button>
+    </footer>
+  </div>
+</div>
+
+<!-- LINT MODAL -->
+<div class="modal-bg" id="lintModal" data-keep-on-bg-click="true">
+  <div class="modal modal-wide">
+    <header>
+      Lint findings <span id="lintCountChip" style="color:var(--text-dim);font-weight:400;margin-left:6px"></span>
+    </header>
+    <div class="modal-body" id="lintBody">
+      <!-- rendered by renderLintModal() -->
+    </div>
+    <footer>
+      <button onclick="closeModal('lintModal')">Close</button>
+      <button onclick="applyAllSafeLintFixes()" class="primary" id="lintFixAllBtn" title="Apply every auto-fixable finding across all categories. Skips warnings without a mechanical fix.">Auto-fix everything safe</button>
     </footer>
   </div>
 </div>
