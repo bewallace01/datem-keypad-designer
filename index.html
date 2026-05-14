@@ -71,15 +71,15 @@
       </select>
     </div>
     <div class="group">
-      <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD file</button>
+      <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD</button>
       <button onclick="openAutofill()" title="Auto-generate a complete keypad layout from your project context" class="primary"><span class="btn-icon" data-icon="sparkles"></span>Auto-fill</button>
       <button onclick="openContext()" title="Edit project feature codes and conventions"><span class="btn-icon" data-icon="fileText"></span>Context</button>
       <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (missing ^C^C, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
-      <button onclick="clearAll()" class="danger">Clear all buttons</button>
+      <button onclick="clearAll()" class="icon danger" title="Clear all buttons in this project (cannot be undone via a single click — use Cmd/Ctrl+Z if you change your mind)"><span data-icon="trash"></span></button>
     </div>
     <div class="spacer"></div>
     <button onclick="openExport()" class="primary"><span class="btn-icon" data-icon="download"></span>Export</button>
-    <button onclick="openImport()" title="Paste a JSON backup or .dkf — for full CAD import use the Import CAD file button">Import JSON / .dkf</button>
+    <button onclick="openImport()" title="Import a .dkf or JSON backup file (or paste contents). For new buttons from a CAD layer table, use Import CAD instead."><span class="btn-icon" data-icon="upload"></span>Import</button>
   </div>
 
   <!-- MAIN -->
