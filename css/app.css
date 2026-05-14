@@ -633,6 +633,13 @@ main { display: flex; overflow: hidden; position: relative; }
 .lint-group-fix-all {
   font-size: 11.5px; padding: 4px 10px;
 }
+.lint-group-manual {
+  font-size: 11px; padding: 3px 8px; border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: help;
+}
 .lint-group-detail {
   font-size: 11.5px; color: var(--text-dim); line-height: 1.5;
   margin: 0 0 8px 11px; padding-left: 8px;

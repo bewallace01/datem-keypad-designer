@@ -456,7 +456,7 @@ function renderLintModal() {
           <span class="lint-group-count">${findings.length} ${findings.length === 1 ? "button" : "buttons"}</span>
           ${hasFix
             ? `<button class="lint-group-fix-all primary" onclick="applyLintFixAll('${ruleId}')">Fix all (${findings.filter((f) => f.fix).length})</button>`
-            : ""}
+            : `<span class="lint-group-manual" title="No mechanical fix — open each button and decide.">Manual review</span>`}
         </div>
         ${meta.detail ? `<p class="lint-group-detail">${escapeHtml(meta.detail)}</p>` : ""}
         <div class="lint-findings">
@@ -530,11 +530,16 @@ async function applyAllSafeLintFixes() {
     "missing-cancel-prefix",
   ];
   for (const r of order) total += applyAllFixesForRule(p, r);
-  if (!total) { toast("Nothing to fix."); return; }
+  if (!total) { toast("Nothing to fix automatically."); return; }
   await persist();
   renderAll();
-  renderLintModal();
-  toast(`Fixed ${total} button${total === 1 ? "" : "s"}`);
+  renderLintModal(); // refreshes lintFindings with the post-fix state
+  const remaining = lintFindings.length;
+  let msg = `Fixed ${total} button${total === 1 ? "" : "s"}`;
+  if (remaining) {
+    msg += ` · ${remaining} finding${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} for manual review`;
+  }
+  toast(msg);
 }
 
 function openLintFinding(id) {
