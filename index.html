@@ -353,6 +353,11 @@
       <p style="color:var(--text-faint);font-size:12px;margin:0 0 10px;line-height:1.5">
         Useful things to include: layer codes (BLDG, ROAD_EOP, HYDRO_EDGE, etc.), what each represents, project type (planimetric / topographic / utility), client conventions, surface naming, anything else specific to this job.
       </p>
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12.5px">
+        <label for="contextTemplate" style="color:var(--text-dim)">Start from a baseline:</label>
+        <select id="contextTemplate" style="flex:1;min-width:0"></select>
+        <button type="button" onclick="insertContextTemplate()" title="Paste the selected baseline into the textarea below. If you already have context written, you'll be asked to confirm before it's replaced.">Insert</button>
+      </div>
       <textarea class="export-text" id="contextText" style="height:280px" placeholder="Example:&#10;Project: 2024 Mecklenburg County planimetric mapping&#10;Scale: 1in = 100ft, 2ft contours&#10;&#10;Layer codes:&#10;BLDG - building outlines, closed polylines&#10;ROAD_EOP - edge of pavement, 3D polyline&#10;ROAD_CL - road centerline, 3D polyline&#10;CURB - curb back, 3D polyline&#10;BREAKLINE - topographic breakline as Civil 3D feature line&#10;SPOT - spot elevation as COGO point&#10;HYDRO_EDGE - water edge at time of flight&#10;..."></textarea>
     </div>
     <footer>

@@ -33,6 +33,7 @@ import { icons, populateIcons } from "./icons.js";
 import { initDrawIcon, getResult as getDrawnIconResult, hasInk as drawHasInk } from "./draw.js";
 import { makeBitmapName } from "./bmp.js";
 import { COLORS } from "./state.js";
+import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
 
 let exportMode = "text";
 
@@ -291,8 +292,33 @@ function openContext() {
   const p = curr();
   document.getElementById("contextText").value = p.context || "";
   document.getElementById("contextProjectName").textContent = p.name;
+  // Populate the baseline-template dropdown the first time the modal opens.
+  // Subsequent opens keep the dropdown's current selection so an operator
+  // who edits multiple projects in a session keeps their pick.
+  const sel = document.getElementById("contextTemplate");
+  if (!sel.options.length) {
+    for (const [id, t] of Object.entries(CONTEXT_TEMPLATES)) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = t.label;
+      sel.appendChild(opt);
+    }
+    sel.value = DEFAULT_TEMPLATE;
+  }
   openModal("contextModal");
   snapshotModalInputs("contextModal");
+}
+
+function insertContextTemplate() {
+  const sel = document.getElementById("contextTemplate");
+  const tpl = CONTEXT_TEMPLATES[sel.value];
+  if (!tpl) return;
+  const ta = document.getElementById("contextText");
+  if (ta.value.trim() && !confirm("Replace the current context with the selected baseline? Click Cancel to keep what you have.")) return;
+  ta.value = tpl.text;
+  ta.focus();
+  ta.setSelectionRange(0, 0);
+  ta.scrollTop = 0;
 }
 
 async function saveContext() {
@@ -1350,6 +1376,7 @@ Object.assign(window, {
   clearAll,
   openContext,
   saveContext,
+  insertContextTemplate,
   openAutofill,
   doAutofill,
   openExport,
