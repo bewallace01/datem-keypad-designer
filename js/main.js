@@ -1651,4 +1651,6 @@ Object.assign(window, {
   applyLintFixAll,
   applyAllSafeLintFixes,
   openLintFinding,
+  doUndo,
+  doRedo,
 });

@@ -44,6 +44,10 @@
   <!-- TOOLBAR -->
   <div class="toolbar">
     <div class="group">
+      <button id="undoBtn" class="icon" onclick="doUndo()" title="Undo (Cmd/Ctrl + Z) — reverses the last change to this project" disabled><span data-icon="rotateLeft"></span></button>
+      <button id="redoBtn" class="icon" onclick="doRedo()" title="Redo (Cmd/Ctrl + Shift + Z, or Cmd/Ctrl + Y)" disabled><span data-icon="rotateRight"></span></button>
+    </div>
+    <div class="group">
       <label>Rows</label>
       <div class="stepper">
         <button onclick="changeGrid(-1, 0)">−</button>

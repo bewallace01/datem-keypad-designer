@@ -3,7 +3,7 @@
 // Side-panel editor state lives in editor.js; this file handles the keypad grid,
 // project selector, legend, and status bar.
 
-import { state, curr, COLORS, colorByID, cellOwnerMap } from "./state.js";
+import { state, curr, COLORS, colorByID, cellOwnerMap, canUndo, canRedo } from "./state.js";
 import { lintProject, countWarningsBySeverity } from "./lint.js";
 import { icons } from "./icons.js";
 
@@ -50,6 +50,14 @@ export function renderAll() {
   renderStatus();
   renderTemplateButton();
   renderEmptyState();
+  renderUndoRedo();
+}
+
+function renderUndoRedo() {
+  const u = document.getElementById("undoBtn");
+  const r = document.getElementById("redoBtn");
+  if (u) u.disabled = !canUndo();
+  if (r) r.disabled = !canRedo();
 }
 
 function renderEmptyState() {
