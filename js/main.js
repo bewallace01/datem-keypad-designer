@@ -403,7 +403,7 @@ function renderLintModal() {
   const body = document.getElementById("lintBody");
   const chip = document.getElementById("lintCountChip");
   const fixAllBtn = document.getElementById("lintFixAllBtn");
-  const fixableCount = lintFindings.filter((f) => f.fix).length;
+  const fixableCount = lintFindings.filter((f) => f.fix || f.fixButton).length;
 
   if (!lintFindings.length) {
     chip.textContent = "";
@@ -436,7 +436,7 @@ function renderLintModal() {
   const sections = [];
   for (const [ruleId, findings] of byRule) {
     const meta = RULES[ruleId] || { label: "Other", detail: "" };
-    const hasFix = findings.some((f) => f.fix);
+    const hasFix = findings.some((f) => f.fix || f.fixButton);
     const level = findings.some((f) => f.level === "warn") ? "warn" : "info";
     sections.push(`
       <div class="lint-group">
@@ -444,7 +444,7 @@ function renderLintModal() {
           <span class="lint-group-title">${escapeHtml(meta.label)}</span>
           <span class="lint-group-count">${findings.length} ${findings.length === 1 ? "button" : "buttons"}</span>
           ${hasFix
-            ? `<button class="lint-group-fix-all primary" onclick="applyLintFixAll('${ruleId}')">Fix all (${findings.filter((f) => f.fix).length})</button>`
+            ? `<button class="lint-group-fix-all primary" onclick="applyLintFixAll('${ruleId}')">Fix all (${findings.filter((f) => f.fix || f.fixButton).length})</button>`
             : `<span class="lint-group-manual" title="No mechanical fix — open each button and decide.">Manual review</span>`}
         </div>
         ${meta.detail ? `<p class="lint-group-detail">${escapeHtml(meta.detail)}</p>` : ""}
@@ -471,14 +471,14 @@ function renderLintFinding(f) {
       </div>
       <div class="lint-finding-actions">
         <button onclick="openLintFinding('${f.id}')" title="Open this button in the side editor">Open</button>
-        ${f.fix ? `<button class="primary" onclick="applyLintFix('${f.id}')" title="Apply the suggested fix to this button only">Fix</button>` : ""}
+        ${(f.fix || f.fixButton) ? `<button class="primary" onclick="applyLintFix('${f.id}')" title="Apply the suggested fix to this button only">Fix</button>` : ""}
       </div>
     </div>`;
 }
 
 async function applyLintFix(id) {
   const finding = lintFindings.find((f) => f.id === id);
-  if (!finding || !finding.fix) return;
+  if (!finding || !(finding.fix || finding.fixButton)) return;
   recordChange();
   const p = curr();
   const changed = applyFix(p, finding);
@@ -517,6 +517,7 @@ async function applyAllSafeLintFixes() {
     "dialog-pops",
     "osnap-not-transparent",
     "missing-cancel-prefix",
+    "header-too-tall",
   ];
   for (const r of order) total += applyAllFixesForRule(p, r);
   if (!total) { toast("Nothing to fix automatically."); return; }

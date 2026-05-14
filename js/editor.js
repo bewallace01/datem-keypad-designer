@@ -252,7 +252,16 @@ export async function generateCommand() {
 export function attachExampleClicks() {
   // Live-relint the editor on changes to the macro or header flag.
   document.getElementById("fCommands").addEventListener("input", renderLint);
-  document.getElementById("fHeader").addEventListener("change", renderLint);
+  // When the user marks a button as a section header, snap its height to 1
+  // — section headers read best as a single-row label bar above the section
+  // they mark. The user can still increase height afterwards if they want.
+  document.getElementById("fHeader").addEventListener("change", (e) => {
+    if (e.target.checked) {
+      const h = document.getElementById("fHeight");
+      if (parseInt(h.value, 10) > 1) h.value = 1;
+    }
+    renderLint();
+  });
   // Bitmap upload + preview wiring.
   document.getElementById("fBitmap").addEventListener("input", renderBitmapPreview);
   document.getElementById("fBitmapUploadBtn").addEventListener("click", () => {
