@@ -25,7 +25,7 @@ import { buildZip } from "./zip.js";
 import { dataUrlToBytes } from "./bmp.js";
 import { parseDkf, summarizeDropped } from "./dkf-import.js";
 import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings, DEFAULT_CONTROL_BUTTONS, DEFAULT_CONTROLS_NEXT_ROW } from "./dxf-import.js";
-import { renderBlockPreview } from "./block-render.js";
+import { renderBlockPreview, blockToBmpDataUrl } from "./block-render.js";
 import { parseDwgFile } from "./dwg-import.js";
 import { cellOwnerMap } from "./state.js";
 import { generateLayout, describeLayers } from "./ai.js";
@@ -1065,12 +1065,14 @@ async function dxfGenerate() {
   const includeHeaders = document.getElementById("dxfIncludeHeaders").checked;
   const linkBlocks = document.getElementById("dxfLinkBlocks").checked;
   const includeControls = document.getElementById("dxfIncludeControls").checked;
+  const includeBlockIcons = document.getElementById("dxfBlockIcons").checked;
   const selected = dxfLayers.filter((l) => l._selected);
   const selectedBlocks = dxfBlocks.filter((b) => b._selected);
   if (!selected.length && !selectedBlocks.length) return;
 
   recordChange();
   if (fillMode === "replace") p.buttons = {};
+  if (!p.customBitmaps) p.customBitmaps = {};
 
   // Build the live occupancy map (handles existing multi-cell button spans).
   // Mutate it as we place new buttons so subsequent placements see the claims.
@@ -1171,7 +1173,16 @@ async function dxfGenerate() {
       }
       if (r >= p.rows) break;
       const key = `${r},${c}`;
-      p.buttons[key] = buttonFromBlock(block, block._override || {});
+      const button = buttonFromBlock(block, block._override || {});
+      if (includeBlockIcons) {
+        const dataUrl = blockToBmpDataUrl(block.entities);
+        if (dataUrl) {
+          const filename = makeBitmapName(`blk_${block.name}`, p.customBitmaps);
+          p.customBitmaps[filename] = dataUrl;
+          button.bitmap = filename;
+        }
+      }
+      p.buttons[key] = button;
       claim(r, c, key);
       blocksPlaced++;
       c++;
