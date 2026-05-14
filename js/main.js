@@ -1444,6 +1444,24 @@ async function dxfGenerate() {
 
 function openImport() {
   document.getElementById("importText").value = "";
+  // Bind the file picker once. Reset .value on change so picking the same
+  // file twice in a row still fires the event.
+  const fi = document.getElementById("importFile");
+  if (!fi.dataset.bound) {
+    fi.dataset.bound = "1";
+    fi.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const text = await f.text();
+        document.getElementById("importText").value = text;
+        toast(`Loaded ${f.name} — click Import to add it as a project`);
+      } catch (err) {
+        toast(`Couldn't read ${f.name}: ${err.message}`);
+      }
+    });
+  }
   openModal("importModal");
   snapshotModalInputs("importModal");
 }
