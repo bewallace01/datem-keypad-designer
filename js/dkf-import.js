@@ -226,3 +226,108 @@ export function summarizeDropped(dropped) {
   if (dropped.stackedLabels) parts.push(`${plural(dropped.stackedLabels, "stacked label")} joined`);
   return parts.length ? parts.join(", ") : "no features dropped";
 }
+
+// Walk a parsed .dkf project (the inner `project` returned by parseDkf) and
+// produce a Project-Context text block that the AI generator can consume.
+// Extracts:
+//   - Layer codes used in -LAYER;S;<NAME>;; switches, with the button label
+//     as a best-effort description
+//   - Block symbols used in -INSERT;<NAME>; calls, same treatment
+//   - DAT/EM and Civil 3D drawing tools observed (AUTOARC3D, PSQR2D,
+//     AECCDRAWFEATURELINES, AECCCREATEPTMANUAL)
+//   - Summit / Capture / OSNAP operator controls present
+// Output is plain text with section headers, padded columns, and explicit
+// <FILL IN description> markers where the source button had no label.
+export function deriveContextFromDkf(project, filename) {
+  const layers = new Map();
+  const blocks = new Map();
+  const tools = new Set();
+  const controls = new Set();
+
+  const TOOL_PATTERNS = [
+    [/AECCDRAWFEATURELINES/i, "Civil 3D feature line (_AECCDRAWFEATURELINES) — DTM breaklines"],
+    [/AECCCREATEPTMANUAL/i,   "Civil 3D COGO point (_AECCCREATEPTMANUAL) — spot elevations"],
+    [/PSQR2D/i,               "DAT/EM PSQR2D — 90° corner squaring for buildings"],
+    [/AUTOARC3D/i,            "DAT/EM AUTOARC3D — auto-arc 3D polyline for curves"],
+  ];
+
+  const CONTROL_PATTERNS = [
+    /Driver/i, /RaiseZ/i, /LowerZ/i, /ZLock/i, /ZUnlock/i, /AutoLevel/i,
+    /ZoomIn/i, /ZoomOut/i, /NextStereoPair/i, /PreviousStereoPair/i,
+    /ModelExtents/i, /Recenter/i,
+    /CallCmd\s+EndFeature/i, /CallCmd\s+UndoLastVertex/i,
+    /'_-osnap;\w+/i,
+  ];
+
+  const note = (map, name, label) => {
+    const key = name.trim();
+    if (!key) return;
+    const e = map.get(key) || { label: "", count: 0 };
+    if (!e.label && label) e.label = label;
+    e.count++;
+    map.set(key, e);
+  };
+
+  for (const btn of Object.values(project.buttons || {})) {
+    if (btn.header) continue;
+    const cmd = btn.commands || "";
+    if (!cmd) continue;
+
+    const layerRe = /-LAYER;S;([^;]+);;/gi;
+    let m;
+    while ((m = layerRe.exec(cmd)) !== null) note(layers, m[1], btn.label);
+
+    const blockRe = /-INSERT;([^;]+);/gi;
+    while ((m = blockRe.exec(cmd)) !== null) note(blocks, m[1], btn.label);
+
+    for (const [re, name] of TOOL_PATTERNS) if (re.test(cmd)) tools.add(name);
+    for (const re of CONTROL_PATTERNS) {
+      const hit = cmd.match(re);
+      if (hit) controls.add(hit[0]);
+    }
+  }
+
+  const lines = [];
+  lines.push("Project type: Derived from imported .dkf — review and edit before saving");
+  if (filename) lines.push(`Source .dkf: ${filename}`);
+  lines.push(`Layer-switch buttons: ${[...layers.values()].reduce((a, b) => a + b.count, 0)}`);
+  lines.push(`Block-insert buttons: ${[...blocks.values()].reduce((a, b) => a + b.count, 0)}`);
+  lines.push("");
+  lines.push("Client: <FILL IN>");
+  lines.push("Project name: <FILL IN>");
+  lines.push("Map scale: <FILL IN>");
+  lines.push("Coordinate system: <FILL IN>");
+  lines.push("");
+
+  const section = (title, map) => {
+    if (!map.size) return;
+    lines.push(title);
+    const sorted = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const pad = Math.max(...sorted.map(([n]) => n.length)) + 2;
+    for (const [name, info] of sorted) {
+      lines.push(`${name.padEnd(pad)}${info.label || "<FILL IN description>"}`);
+    }
+    lines.push("");
+  };
+
+  section("LAYER CODES (extracted from -LAYER;S;… commands)", layers);
+  section("BLOCK SYMBOLS (extracted from -INSERT;… commands)", blocks);
+
+  if (tools.size) {
+    lines.push("DRAWING TOOLS USED");
+    for (const t of [...tools].sort()) lines.push(`- ${t}`);
+    lines.push("");
+  }
+  if (controls.size) {
+    lines.push("OPERATOR CONTROLS PRESENT");
+    for (const c of [...controls].sort()) lines.push(`- ${c}`);
+    lines.push("");
+  }
+
+  lines.push("NOTES");
+  lines.push("- This block was auto-derived from the imported .dkf. Edit freely.");
+  lines.push("- Add project-specific notes: client, scale, accuracy class, deliverables.");
+  lines.push("- The AI generator uses everything here when designing new keypads.");
+
+  return lines.join("\n") + "\n";
+}

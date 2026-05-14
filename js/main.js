@@ -23,7 +23,7 @@ import {
 import { buildDkfExport, dkfClampWarning, dkfFilename } from "./dkf.js";
 import { buildZip } from "./zip.js";
 import { dataUrlToBytes } from "./bmp.js";
-import { parseDkf, summarizeDropped } from "./dkf-import.js";
+import { parseDkf, summarizeDropped, deriveContextFromDkf } from "./dkf-import.js";
 import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings, DEFAULT_CONTROL_BUTTONS, DEFAULT_CONTROLS_NEXT_ROW } from "./dxf-import.js";
 import { renderBlockPreview, blockToBmpDataUrl } from "./block-render.js";
 import { parseDwgFile } from "./dwg-import.js";
@@ -305,6 +305,26 @@ function openContext() {
     }
     sel.value = DEFAULT_TEMPLATE;
   }
+  // Bind the .dkf and .txt file inputs once. We reset .value on each change
+  // so picking the same file twice in a row still fires the change event.
+  const dkfInput = document.getElementById("contextDkfFile");
+  if (!dkfInput.dataset.bound) {
+    dkfInput.dataset.bound = "1";
+    dkfInput.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      await deriveContextFromDkfFile(f);
+    });
+  }
+  const txtInput = document.getElementById("contextTxtFile");
+  if (!txtInput.dataset.bound) {
+    txtInput.dataset.bound = "1";
+    txtInput.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      await loadContextFromTextFile(f);
+    });
+  }
   openModal("contextModal");
   snapshotModalInputs("contextModal");
 }
@@ -313,12 +333,54 @@ function insertContextTemplate() {
   const sel = document.getElementById("contextTemplate");
   const tpl = CONTEXT_TEMPLATES[sel.value];
   if (!tpl) return;
+  setContextTextWithConfirm(tpl.text);
+}
+
+function setContextTextWithConfirm(newText) {
   const ta = document.getElementById("contextText");
-  if (ta.value.trim() && !confirm("Replace the current context with the selected baseline? Click Cancel to keep what you have.")) return;
-  ta.value = tpl.text;
+  if (ta.value.trim() && !confirm("Replace the current context? Click Cancel to keep what you have.")) return false;
+  ta.value = newText;
   ta.focus();
   ta.setSelectionRange(0, 0);
   ta.scrollTop = 0;
+  return true;
+}
+
+async function deriveContextFromDkfFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const { project } = parseDkf(text);
+    const derived = deriveContextFromDkf(project, file.name);
+    if (setContextTextWithConfirm(derived)) {
+      toast(`Context derived from ${file.name}`);
+    }
+  } catch (e) {
+    console.error(e);
+    toast(`Couldn't read ${file.name}: ${e.message}`);
+  }
+}
+
+async function loadContextFromTextFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    if (setContextTextWithConfirm(text)) {
+      toast(`Loaded ${file.name}`);
+    }
+  } catch (e) {
+    console.error(e);
+    toast(`Couldn't read ${file.name}: ${e.message}`);
+  }
+}
+
+function saveContextToFile() {
+  const p = curr();
+  const text = document.getElementById("contextText").value;
+  if (!text.trim()) { toast("Nothing to save — textarea is empty"); return; }
+  const base = safeFileName(p.name || "project") + "_context";
+  downloadFile(`${base}.txt`, text);
+  toast(`Saved ${base}.txt`);
 }
 
 async function saveContext() {
@@ -1377,6 +1439,7 @@ Object.assign(window, {
   openContext,
   saveContext,
   insertContextTemplate,
+  saveContextToFile,
   openAutofill,
   doAutofill,
   openExport,
