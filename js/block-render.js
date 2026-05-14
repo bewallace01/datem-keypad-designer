@@ -6,6 +6,8 @@
 // Supported entity types: LINE, CIRCLE, ARC, LWPOLYLINE, POLYLINE. Others are
 // silently skipped (the count still surfaces in the modal's footer).
 
+import { encodeBmp, bytesToDataUrl } from "./bmp.js";
+
 export function renderBlockPreview(canvas, entities, options = {}) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
@@ -82,6 +84,27 @@ export function renderBlockPreview(canvas, entities, options = {}) {
       ctx.stroke();
     }
   }
+}
+
+// Rasterize a block's geometry to a 24-bit BMP suitable for the DAT/EM
+// keypad. White background, black 1.5-px strokes, line caps slightly trimmed
+// so geometry doesn't bleed into the rim of the on-keypad icon cell.
+// Returns null when the block has no drawable geometry — callers should fall
+// back to text-only buttons in that case.
+export function blockToBmpDataUrl(entities, size = 24) {
+  const drawable = (entities || []).filter((e) => !e.ignored && e.type);
+  if (!drawable.length) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  renderBlockPreview(canvas, entities, {
+    color: "#000000",
+    background: "#ffffff",
+    margin: 2,
+  });
+  const ctx = canvas.getContext("2d");
+  const imgData = ctx.getImageData(0, 0, size, size);
+  return bytesToDataUrl(encodeBmp(imgData.data, size, size));
 }
 
 function computeBbox(entities) {

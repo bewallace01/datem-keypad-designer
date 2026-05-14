@@ -3,7 +3,7 @@
 // for the inline onclick attributes in index.html.
 
 import { state, curr, newId, init, persist, recordChange, resetHistory, undo, redo, canUndo, canRedo } from "./state.js";
-import { renderAll, toast, openModal, closeModal, setButtonClickHandler, setSelectionChangeHandler, setCellDropHandler, getSelection, clearSelection } from "./ui.js";
+import { renderAll, toast, openModal, closeModal, setButtonClickHandler, setSelectionChangeHandler, setCellDropHandler, getSelection, clearSelection, escapeHtml } from "./ui.js";
 import {
   openEdit,
   closeSide,
@@ -23,9 +23,9 @@ import {
 import { buildDkfExport, dkfClampWarning, dkfFilename } from "./dkf.js";
 import { buildZip } from "./zip.js";
 import { dataUrlToBytes } from "./bmp.js";
-import { parseDkf, summarizeDropped } from "./dkf-import.js";
-import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings } from "./dxf-import.js";
-import { renderBlockPreview } from "./block-render.js";
+import { parseDkf, summarizeDropped, deriveContextFromDkf } from "./dkf-import.js";
+import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, groupLayersByCategory, CATEGORY_LABELS, disciplineOf, computeLayerBlockBindings, DEFAULT_CONTROL_BUTTONS, DEFAULT_CONTROLS_NEXT_ROW } from "./dxf-import.js";
+import { renderBlockPreview, blockToBmpDataUrl } from "./block-render.js";
 import { parseDwgFile } from "./dwg-import.js";
 import { cellOwnerMap } from "./state.js";
 import { generateLayout, describeLayers } from "./ai.js";
@@ -33,6 +33,8 @@ import { icons, populateIcons } from "./icons.js";
 import { initDrawIcon, getResult as getDrawnIconResult, hasInk as drawHasInk } from "./draw.js";
 import { makeBitmapName } from "./bmp.js";
 import { COLORS } from "./state.js";
+import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
+import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySeverity, RULES } from "./lint.js";
 
 let exportMode = "text";
 
@@ -291,8 +293,95 @@ function openContext() {
   const p = curr();
   document.getElementById("contextText").value = p.context || "";
   document.getElementById("contextProjectName").textContent = p.name;
+  // Populate the baseline-template dropdown the first time the modal opens.
+  // Subsequent opens keep the dropdown's current selection so an operator
+  // who edits multiple projects in a session keeps their pick.
+  const sel = document.getElementById("contextTemplate");
+  if (!sel.options.length) {
+    for (const [id, t] of Object.entries(CONTEXT_TEMPLATES)) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = t.label;
+      sel.appendChild(opt);
+    }
+    sel.value = DEFAULT_TEMPLATE;
+  }
+  // Bind the .dkf and .txt file inputs once. We reset .value on each change
+  // so picking the same file twice in a row still fires the change event.
+  const dkfInput = document.getElementById("contextDkfFile");
+  if (!dkfInput.dataset.bound) {
+    dkfInput.dataset.bound = "1";
+    dkfInput.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      await deriveContextFromDkfFile(f);
+    });
+  }
+  const txtInput = document.getElementById("contextTxtFile");
+  if (!txtInput.dataset.bound) {
+    txtInput.dataset.bound = "1";
+    txtInput.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      await loadContextFromTextFile(f);
+    });
+  }
   openModal("contextModal");
   snapshotModalInputs("contextModal");
+}
+
+function insertContextTemplate() {
+  const sel = document.getElementById("contextTemplate");
+  const tpl = CONTEXT_TEMPLATES[sel.value];
+  if (!tpl) return;
+  setContextTextWithConfirm(tpl.text);
+}
+
+function setContextTextWithConfirm(newText) {
+  const ta = document.getElementById("contextText");
+  if (ta.value.trim() && !confirm("Replace the current context? Click Cancel to keep what you have.")) return false;
+  ta.value = newText;
+  ta.focus();
+  ta.setSelectionRange(0, 0);
+  ta.scrollTop = 0;
+  return true;
+}
+
+async function deriveContextFromDkfFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const { project } = parseDkf(text);
+    const derived = deriveContextFromDkf(project, file.name);
+    if (setContextTextWithConfirm(derived)) {
+      toast(`Context derived from ${file.name}`);
+    }
+  } catch (e) {
+    console.error(e);
+    toast(`Couldn't read ${file.name}: ${e.message}`);
+  }
+}
+
+async function loadContextFromTextFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    if (setContextTextWithConfirm(text)) {
+      toast(`Loaded ${file.name}`);
+    }
+  } catch (e) {
+    console.error(e);
+    toast(`Couldn't read ${file.name}: ${e.message}`);
+  }
+}
+
+function saveContextToFile() {
+  const p = curr();
+  const text = document.getElementById("contextText").value;
+  if (!text.trim()) { toast("Nothing to save — textarea is empty"); return; }
+  const base = safeFileName(p.name || "project") + "_context";
+  downloadFile(`${base}.txt`, text);
+  toast(`Saved ${base}.txt`);
 }
 
 async function saveContext() {
@@ -304,6 +393,155 @@ async function saveContext() {
   await persist();
   closeModal("contextModal");
   toast("Project context saved");
+}
+
+// =========================================================================
+// LINT MODAL
+// =========================================================================
+// Cached findings so the per-row "Fix" and "Open" buttons can look them up
+// by id without re-running lint between render and click.
+let lintFindings = [];
+
+function openLint() {
+  renderLintModal();
+  openModal("lintModal");
+}
+
+function renderLintModal() {
+  const p = curr();
+  lintFindings = findProjectIssues(p);
+
+  const body = document.getElementById("lintBody");
+  const chip = document.getElementById("lintCountChip");
+  const fixAllBtn = document.getElementById("lintFixAllBtn");
+  const fixableCount = lintFindings.filter((f) => f.fix).length;
+
+  if (!lintFindings.length) {
+    chip.textContent = "";
+    fixAllBtn.disabled = true;
+    body.innerHTML = `
+      <div class="lint-empty">
+        <strong>Looks good — no findings.</strong>
+        Every configured button passes the static checks.
+      </div>`;
+    return;
+  }
+
+  const counts = countWarningsBySeverity({ _: lintFindings.map((f) => ({ level: f.level })) });
+  const parts = [];
+  if (counts.warn) parts.push(`${counts.warn} warning${counts.warn === 1 ? "" : "s"}`);
+  if (counts.info) parts.push(`${counts.info} note${counts.info === 1 ? "" : "s"}`);
+  chip.textContent = `· ${parts.join(", ")}`;
+  fixAllBtn.disabled = !fixableCount;
+  fixAllBtn.textContent = fixableCount
+    ? `Auto-fix everything safe (${fixableCount})`
+    : "Auto-fix everything safe";
+
+  const byRule = new Map();
+  for (const f of lintFindings) {
+    const list = byRule.get(f.ruleId || "_uncategorized") || [];
+    list.push(f);
+    byRule.set(f.ruleId || "_uncategorized", list);
+  }
+
+  const sections = [];
+  for (const [ruleId, findings] of byRule) {
+    const meta = RULES[ruleId] || { label: "Other", detail: "" };
+    const hasFix = findings.some((f) => f.fix);
+    const level = findings.some((f) => f.level === "warn") ? "warn" : "info";
+    sections.push(`
+      <div class="lint-group">
+        <div class="lint-group-head severity-${level}">
+          <span class="lint-group-title">${escapeHtml(meta.label)}</span>
+          <span class="lint-group-count">${findings.length} ${findings.length === 1 ? "button" : "buttons"}</span>
+          ${hasFix
+            ? `<button class="lint-group-fix-all primary" onclick="applyLintFixAll('${ruleId}')">Fix all (${findings.filter((f) => f.fix).length})</button>`
+            : ""}
+        </div>
+        ${meta.detail ? `<p class="lint-group-detail">${escapeHtml(meta.detail)}</p>` : ""}
+        <div class="lint-findings">
+          ${findings.map(renderLintFinding).join("")}
+        </div>
+      </div>`);
+  }
+  body.innerHTML = sections.join("");
+}
+
+function renderLintFinding(f) {
+  const cellRef = `R${f.row + 1}, C${f.col + 1}`;
+  const cmdSnippet = (f.command || "").replace(/\n/g, " ⏎ ");
+  return `
+    <div class="lint-finding" data-id="${f.id}">
+      <div class="lint-finding-loc">
+        <strong>${escapeHtml(f.label || "—")}</strong>
+        <span>${cellRef}</span>
+      </div>
+      <div class="lint-finding-body">
+        <div class="lint-finding-msg">${escapeHtml(f.msg)}</div>
+        <div class="lint-finding-cmd" title="${escapeHtml(f.command)}">${escapeHtml(cmdSnippet) || "&lt;empty&gt;"}</div>
+      </div>
+      <div class="lint-finding-actions">
+        <button onclick="openLintFinding('${f.id}')" title="Open this button in the side editor">Open</button>
+        ${f.fix ? `<button class="primary" onclick="applyLintFix('${f.id}')" title="Apply the suggested fix to this button only">Fix</button>` : ""}
+      </div>
+    </div>`;
+}
+
+async function applyLintFix(id) {
+  const finding = lintFindings.find((f) => f.id === id);
+  if (!finding || !finding.fix) return;
+  recordChange();
+  const p = curr();
+  const changed = applyFix(p, finding);
+  if (!changed) {
+    toast("No change — the macro was already updated.");
+    renderLintModal();
+    return;
+  }
+  await persist();
+  renderAll();
+  renderLintModal();
+}
+
+async function applyLintFixAll(ruleId) {
+  const p = curr();
+  recordChange();
+  const n = applyAllFixesForRule(p, ruleId);
+  if (!n) { toast("Nothing to fix in that category."); return; }
+  await persist();
+  renderAll();
+  renderLintModal();
+  toast(`Fixed ${n} button${n === 1 ? "" : "s"}`);
+}
+
+async function applyAllSafeLintFixes() {
+  const p = curr();
+  recordChange();
+  let total = 0;
+  // Run rules in dependency order: replace literal {ESC}/{RET} first so later
+  // rules see editor-form macros, then case corrections, then structural
+  // fixes, then the prefix tweak.
+  const order = [
+    "literal-esc-token",
+    "case-wrong-summit-keyword",
+    "layer-not-closed",
+    "dialog-pops",
+    "osnap-not-transparent",
+    "missing-cancel-prefix",
+  ];
+  for (const r of order) total += applyAllFixesForRule(p, r);
+  if (!total) { toast("Nothing to fix."); return; }
+  await persist();
+  renderAll();
+  renderLintModal();
+  toast(`Fixed ${total} button${total === 1 ? "" : "s"}`);
+}
+
+function openLintFinding(id) {
+  const finding = lintFindings.find((f) => f.id === id);
+  if (!finding) return;
+  closeModal("lintModal");
+  openEdit(finding.row, finding.col);
 }
 
 // =========================================================================
@@ -1060,16 +1298,19 @@ async function dxfExportReport() {
 async function dxfGenerate() {
   const p = curr();
   const fillMode = document.getElementById("dxfFillMode").value;
-  const startRow = Math.max(0, parseInt(document.getElementById("dxfStartRow").value, 10) || 0);
+  let startRow = Math.max(0, parseInt(document.getElementById("dxfStartRow").value, 10) || 0);
   const includeTool = document.getElementById("dxfIncludeTool").checked;
   const includeHeaders = document.getElementById("dxfIncludeHeaders").checked;
   const linkBlocks = document.getElementById("dxfLinkBlocks").checked;
+  const includeControls = document.getElementById("dxfIncludeControls").checked;
+  const includeBlockIcons = document.getElementById("dxfBlockIcons").checked;
   const selected = dxfLayers.filter((l) => l._selected);
   const selectedBlocks = dxfBlocks.filter((b) => b._selected);
   if (!selected.length && !selectedBlocks.length) return;
 
   recordChange();
   if (fillMode === "replace") p.buttons = {};
+  if (!p.customBitmaps) p.customBitmaps = {};
 
   // Build the live occupancy map (handles existing multi-cell button spans).
   // Mutate it as we place new buttons so subsequent placements see the claims.
@@ -1083,6 +1324,24 @@ async function dxfGenerate() {
     for (let dc = 0; dc < w; dc++) if (owner[`${r},${c + dc}`]) return false;
     return true;
   };
+
+  // Prepend the default control buttons (Summit + Capture + OSNAP) at the top
+  // before any layer placement. Skip cells that are already occupied (so the
+  // option is safe in "fill empty only" mode) and any column that falls
+  // outside the user's grid width. Bump startRow so layer placement begins
+  // below the controls block.
+  let controlsPlaced = 0;
+  if (includeControls) {
+    for (const ctl of DEFAULT_CONTROL_BUTTONS) {
+      if (ctl.col >= p.cols || ctl.row >= p.rows) continue;
+      if (!isFree(ctl.row, ctl.col)) continue;
+      const key = `${ctl.row},${ctl.col}`;
+      p.buttons[key] = { label: ctl.label, color: ctl.color, commands: ctl.commands, notes: ctl.notes };
+      claim(ctl.row, ctl.col, key);
+      controlsPlaced++;
+    }
+    if (controlsPlaced) startRow = Math.max(startRow, DEFAULT_CONTROLS_NEXT_ROW);
+  }
 
   // Group selected layers by category, then place section by section. Each
   // section starts on a fresh row with an optional 2-wide colored header,
@@ -1152,7 +1411,16 @@ async function dxfGenerate() {
       }
       if (r >= p.rows) break;
       const key = `${r},${c}`;
-      p.buttons[key] = buttonFromBlock(block, block._override || {});
+      const button = buttonFromBlock(block, block._override || {});
+      if (includeBlockIcons) {
+        const dataUrl = blockToBmpDataUrl(block.entities);
+        if (dataUrl) {
+          const filename = makeBitmapName(`blk_${block.name}`, p.customBitmaps);
+          p.customBitmaps[filename] = dataUrl;
+          button.bitmap = filename;
+        }
+      }
+      p.buttons[key] = button;
       claim(r, c, key);
       blocksPlaced++;
       c++;
@@ -1165,9 +1433,10 @@ async function dxfGenerate() {
   await persist();
   renderAll();
   closeModal("dxfImportModal");
-  const total = placed + blocksPlaced;
+  const total = placed + blocksPlaced + controlsPlaced;
   let summary = `Placed ${total} button${total === 1 ? "" : "s"}`;
-  if (blocksPlaced) summary += ` (${placed} layer + ${blocksPlaced} block)`;
+  if (controlsPlaced) summary += ` (${controlsPlaced} control + ${placed} layer + ${blocksPlaced} block)`;
+  else if (blocksPlaced) summary += ` (${placed} layer + ${blocksPlaced} block)`;
   if (headersAdded) summary += `, ${headersAdded} section header${headersAdded === 1 ? "" : "s"}`;
   if (leftover) summary += `, ${leftover} didn't fit (grow the grid or use replace mode)`;
   toast(summary);
@@ -1175,6 +1444,24 @@ async function dxfGenerate() {
 
 function openImport() {
   document.getElementById("importText").value = "";
+  // Bind the file picker once. Reset .value on change so picking the same
+  // file twice in a row still fires the event.
+  const fi = document.getElementById("importFile");
+  if (!fi.dataset.bound) {
+    fi.dataset.bound = "1";
+    fi.addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      e.target.value = "";
+      if (!f) return;
+      try {
+        const text = await f.text();
+        document.getElementById("importText").value = text;
+        toast(`Loaded ${f.name} — click Import to add it as a project`);
+      } catch (err) {
+        toast(`Couldn't read ${f.name}: ${err.message}`);
+      }
+    });
+  }
   openModal("importModal");
   snapshotModalInputs("importModal");
 }
@@ -1319,6 +1606,8 @@ Object.assign(window, {
   clearAll,
   openContext,
   saveContext,
+  insertContextTemplate,
+  saveContextToFile,
   openAutofill,
   doAutofill,
   openExport,
@@ -1352,4 +1641,9 @@ Object.assign(window, {
   saveButton,
   clearButton,
   generateCommand,
+  openLint,
+  applyLintFix,
+  applyLintFixAll,
+  applyAllSafeLintFixes,
+  openLintFinding,
 });

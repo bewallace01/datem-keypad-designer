@@ -613,6 +613,55 @@ main { display: flex; overflow: hidden; position: relative; }
 .lint-icon { flex-shrink: 0; font-weight: 700; }
 #statusInfo.has-lint-warn { color: #f47272; }
 
+/* Lint modal */
+.lint-empty {
+  text-align: center; color: var(--text-dim); font-size: 13px;
+  padding: 40px 20px; line-height: 1.6;
+}
+.lint-empty strong { color: var(--text); font-size: 15px; display: block; margin-bottom: 6px; }
+.lint-group { margin-bottom: 18px; }
+.lint-group:last-child { margin-bottom: 0; }
+.lint-group-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 6px; padding: 6px 8px;
+  border-radius: 4px; background: rgba(255,255,255,0.03);
+}
+.lint-group-head.severity-warn { border-left: 3px solid #f47272; }
+.lint-group-head.severity-info { border-left: 3px solid #5ba2f7; }
+.lint-group-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 0 0 auto; }
+.lint-group-count { font-size: 11.5px; color: var(--text-dim); flex: 1; }
+.lint-group-fix-all {
+  font-size: 11.5px; padding: 4px 10px;
+}
+.lint-group-detail {
+  font-size: 11.5px; color: var(--text-dim); line-height: 1.5;
+  margin: 0 0 8px 11px; padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.lint-findings { display: flex; flex-direction: column; gap: 4px; }
+.lint-finding {
+  display: grid; grid-template-columns: 90px 1fr auto; gap: 10px;
+  align-items: center;
+  padding: 6px 8px; border-radius: 4px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  font-size: 12px;
+}
+.lint-finding-loc {
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: ui-monospace, "SF Mono", Monaco, monospace;
+  font-size: 11px; color: var(--text-dim);
+}
+.lint-finding-loc strong { color: var(--text); font-family: inherit; font-size: 12px; font-weight: 600; }
+.lint-finding-body { min-width: 0; overflow: hidden; }
+.lint-finding-msg { color: var(--text); line-height: 1.4; margin-bottom: 3px; }
+.lint-finding-cmd {
+  font-family: ui-monospace, "SF Mono", Monaco, monospace;
+  font-size: 11px; color: var(--text-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lint-finding-actions { display: flex; gap: 6px; }
+.lint-finding-actions button { font-size: 11.5px; padding: 4px 10px; }
+
 /* SIDE PANEL */
 .side {
   position: absolute;

@@ -70,6 +70,7 @@
       <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD file</button>
       <button onclick="openAutofill()" title="Auto-generate a complete keypad layout from your project context" class="primary"><span class="btn-icon" data-icon="sparkles"></span>Auto-fill</button>
       <button onclick="openContext()" title="Edit project feature codes and conventions"><span class="btn-icon" data-icon="fileText"></span>Context</button>
+      <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (missing ^C^C, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
       <button onclick="clearAll()" class="danger">Clear all buttons</button>
     </div>
     <div class="spacer"></div>
@@ -264,7 +265,12 @@
   <div class="modal">
     <header>Import keypad</header>
     <div class="modal-body">
-      <p style="color:var(--text-dim);font-size:12px;margin-top:0">Paste a previously-exported JSON backup, or a DAT/EM Keypad <code>.dkf</code> file. Either is added as a new project (won't overwrite existing). Some <code>.dkf</code> features are flattened on import — see toast for details.</p>
+      <p style="color:var(--text-dim);font-size:12px;margin-top:0">Pick a <code>.dkf</code> or JSON backup file, or paste its contents below. Either is added as a new project (won't overwrite existing). Some <code>.dkf</code> features are flattened on import — see toast for details.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12.5px">
+        <input type="file" id="importFile" accept=".dkf,.json,.txt,application/json,text/plain" style="display:none">
+        <button type="button" onclick="document.getElementById('importFile').click()" title="Pick a .dkf or .json file from disk. Contents are loaded into the textarea — click Import to actually create the project.">Choose file…</button>
+        <span style="color:var(--text-faint)">— or paste below</span>
+      </div>
       <textarea class="export-text" id="importText" placeholder='Paste JSON backup or .dkf contents'></textarea>
     </div>
     <footer>
@@ -318,7 +324,13 @@
           <label>Start at row: <input type="number" id="dxfStartRow" min="0" value="2" style="width:60px"></label>
         </div>
         <div class="dxf-options">
+          <label class="checkbox-row"><input type="checkbox" id="dxfIncludeControls" checked><span>Prepend a default control row at the top (Driver, Z-lock, Cancel, OSNAPs, etc.) — auto-bumps the start row</span></label>
+        </div>
+        <div class="dxf-options">
           <label class="checkbox-row"><input type="checkbox" id="dxfLinkBlocks" checked><span>Auto-link blocks to their dominant layer (one button does layer-switch + symbol insert)</span></label>
+        </div>
+        <div class="dxf-options">
+          <label class="checkbox-row"><input type="checkbox" id="dxfBlockIcons" checked><span>Bundle block previews as button icons (24×24 BMP — included automatically in ZIP export)</span></label>
         </div>
         <div class="dxf-options">
           <label class="checkbox-row"><input type="checkbox" id="dxfIncludeTool" checked><span>For unlinked layers, chain a drawing tool (3D polyline, feature line for breaklines, COGO point for spots)</span></label>
@@ -347,6 +359,19 @@
       <p style="color:var(--text-faint);font-size:12px;margin:0 0 10px;line-height:1.5">
         Useful things to include: layer codes (BLDG, ROAD_EOP, HYDRO_EDGE, etc.), what each represents, project type (planimetric / topographic / utility), client conventions, surface naming, anything else specific to this job.
       </p>
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:12.5px">
+        <label for="contextTemplate" style="color:var(--text-dim)">Start from a baseline:</label>
+        <select id="contextTemplate" style="flex:1;min-width:0"></select>
+        <button type="button" onclick="insertContextTemplate()" title="Paste the selected baseline into the textarea below. If you already have context written, you'll be asked to confirm before it's replaced.">Insert</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12.5px;flex-wrap:wrap">
+        <span style="color:var(--text-dim)">Or:</span>
+        <input type="file" id="contextDkfFile" accept=".dkf" style="display:none">
+        <button type="button" onclick="document.getElementById('contextDkfFile').click()" title="Pick a .dkf file. Layer codes, block symbols, drawing tools, and operator controls are extracted from its buttons and written into the textarea as a structured context block.">Derive from .dkf…</button>
+        <input type="file" id="contextTxtFile" accept=".txt,.md,text/plain" style="display:none">
+        <button type="button" onclick="document.getElementById('contextTxtFile').click()" title="Load a previously-saved context .txt file into the textarea.">Load .txt…</button>
+        <button type="button" onclick="saveContextToFile()" title="Save the current textarea content as a .txt file so you can reuse it across projects.">Save .txt</button>
+      </div>
       <textarea class="export-text" id="contextText" style="height:280px" placeholder="Example:&#10;Project: 2024 Mecklenburg County planimetric mapping&#10;Scale: 1in = 100ft, 2ft contours&#10;&#10;Layer codes:&#10;BLDG - building outlines, closed polylines&#10;ROAD_EOP - edge of pavement, 3D polyline&#10;ROAD_CL - road centerline, 3D polyline&#10;CURB - curb back, 3D polyline&#10;BREAKLINE - topographic breakline as Civil 3D feature line&#10;SPOT - spot elevation as COGO point&#10;HYDRO_EDGE - water edge at time of flight&#10;..."></textarea>
     </div>
     <footer>
@@ -617,6 +642,22 @@
     <footer>
       <button onclick="cancelModal('bulkFindModal')">Cancel</button>
       <button onclick="doBulkFindReplace()" class="primary">Replace</button>
+    </footer>
+  </div>
+</div>
+
+<!-- LINT MODAL -->
+<div class="modal-bg" id="lintModal" data-keep-on-bg-click="true">
+  <div class="modal modal-wide">
+    <header>
+      Lint findings <span id="lintCountChip" style="color:var(--text-dim);font-weight:400;margin-left:6px"></span>
+    </header>
+    <div class="modal-body" id="lintBody">
+      <!-- rendered by renderLintModal() -->
+    </div>
+    <footer>
+      <button onclick="closeModal('lintModal')">Close</button>
+      <button onclick="applyAllSafeLintFixes()" class="primary" id="lintFixAllBtn" title="Apply every auto-fixable finding across all categories. Skips warnings without a mechanical fix.">Auto-fix everything safe</button>
     </footer>
   </div>
 </div>
