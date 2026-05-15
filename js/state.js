@@ -82,6 +82,34 @@ export function normalizeMacro(commands) {
   // so AutoCAD parses the name verbatim (it accepts quoted layer names).
   s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, '-LAYER{RET}SET{RET}"$1"{RET}{RET}');
   s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
+  // Strip Microstation drawing key-ins that don't exist on the AutoCAD host.
+  // DAT/EM Capture's `place cell` / `place lstring` (a.k.a `place line string`)
+  // share the same command name across hosts, so they're explicitly NOT in
+  // this list. The user adds the feature-appropriate AutoCAD/DAT-EM tool
+  // (PSQR2D, AUTOARC3D, -INSERT{RET}BLOCK{RET}, …) after the level-set by
+  // hand — wrong default would silently break a different way.
+  const MICROSTATION_DRAW_KEY_INS = [
+    "place active shape",
+    "place active line",
+    "place active text",
+    "place active point",
+    "place shape",
+    "place line",
+    "place text",
+    "place note",
+    "place point",
+    "place arc",
+    "place circle",
+    "place curve",
+    "place spline",
+    "place block",
+    "place ellipse",
+    "place fence",
+  ];
+  for (const cmd of MICROSTATION_DRAW_KEY_INS) {
+    const re = new RegExp(`\\b${cmd.replace(/[.*+?^${}()|[\\]/g, "\\$&")}\\{RET\\}`, "gi");
+    s = s.replace(re, "");
+  }
   return s;
 }
 
