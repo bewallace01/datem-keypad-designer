@@ -75,12 +75,16 @@ export function normalizeMacro(commands) {
   s = s.replace(/\b(?:CO|WT|LC)=[^{}\s]*\{RET\}/gi, "");
   // Microstation cell-placement: `AS=<cellname>{RET}place cell{RET}` or
   // `AC=<cellname>{RET}place cell{RET}` sets the active symbol/cell then
-  // places it. Convert both to the AutoCAD `-INSERT{RET}<cellname>{RET}`
-  // equivalent so the macro stops at the insertion-point prompt and the
-  // operator picks on-screen. Quoted form first (cell names can contain
-  // spaces in V8).
-  s = s.replace(/\b(?:AS|AC)="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
-  s = s.replace(/\b(?:AS|AC)=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
+  // places it. Convert both to the AutoCAD `-INSERT{RET}<cellname>{RET}…`
+  // form with scale and rotation PRE-BAKED so the macro lands the block
+  // on a single insertion-point click with no follow-up prompts. AutoCAD
+  // accepts `S{RET}<n>{RET}` and `R{RET}<deg>{RET}` as preset options at
+  // the insertion-point prompt; once both are set, the prompt loops back
+  // and waits for the click, then places immediately. To override the
+  // default scale (1) or rotation (0), edit the values in the Commands
+  // textarea — they're in plain sight at the end of the macro.
+  s = s.replace(/\b(?:AS|AC)="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}S{RET}1{RET}R{RET}0{RET}");
+  s = s.replace(/\b(?:AS|AC)=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}S{RET}1{RET}R{RET}0{RET}");
   // Orphan AS=/AC=<value>{RET} (active-symbol/cell set without a following
   // `place cell`) is dead text on the AutoCAD host. Strip.
   s = s.replace(/\b(?:AS|AC)=[^{}\n]*?\{RET\}/gi, "");
