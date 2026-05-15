@@ -146,6 +146,8 @@ AVOID:
 - Inventing layer names not in either source.
 - Returning duplicate names (case-insensitive). Deduplicate, preferring the casing used by the keypad button.
 - Returning property values that aren't valid AutoCAD ACI / linetype / lineweight integers.
+- Long descriptions. Keep each one ≤ 60 characters. If the PDF doesn't give a description, use an empty string — don't make one up.
+- Escaping issues. Descriptions must NOT contain raw double-quote characters; use a hyphen or paraphrase instead. The entire response must be valid parseable JSON.
 
 OUTPUT FORMAT:
 Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:

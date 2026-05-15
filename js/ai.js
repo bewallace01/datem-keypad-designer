@@ -77,8 +77,30 @@ function parseJson(text) {
   try {
     return JSON.parse(text);
   } catch {
+    // Strip markdown fences / prose around the object.
     const match = text.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch {}
+    }
+    // Truncation recovery: max-tokens cutoff often leaves a partial last
+    // array element. Slice off everything after the last complete `}` we
+    // find inside the outer object, then close any still-open `[` and `{`
+    // brackets. Good enough to salvage 99% of a long response.
+    const start = text.indexOf("{");
+    if (start >= 0) {
+      let s = text.slice(start);
+      const lastComplete = s.lastIndexOf("}");
+      if (lastComplete > 0) {
+        let head = s.slice(0, lastComplete + 1);
+        const opens = (head.match(/\[/g) || []).length;
+        const closes = (head.match(/\]/g) || []).length;
+        head += "]".repeat(Math.max(0, opens - closes));
+        const objOpens = (head.match(/\{/g) || []).length;
+        const objCloses = (head.match(/\}/g) || []).length;
+        head += "}".repeat(Math.max(0, objOpens - objCloses));
+        try { return JSON.parse(head); } catch {}
+      }
+    }
     throw new Error("Could not parse response as JSON");
   }
 }
@@ -262,7 +284,10 @@ export async function extractLayersFromPdf({ pdfText, keypadLayers, projectConte
     `PDF CONTENT (extracted text, may be a table or free narrative):\n` +
     (pdfText ? pdfText.slice(0, 60000) : "(no PDF provided)");
 
-  const text = await callAnthropic(LAYER_EXTRACTION_PROMPT, userContent, 4000);
+  // 16k tokens — large project spec PDFs can produce 100+ layers, each
+  // emitting a ~50-byte JSON object. The parseJson() recovery pass still
+  // catches us if Claude runs past even this.
+  const text = await callAnthropic(LAYER_EXTRACTION_PROMPT, userContent, 16000);
   const result = parseJson(text);
   if (!result.layers || !Array.isArray(result.layers)) {
     throw new Error("Response missing layers array");
