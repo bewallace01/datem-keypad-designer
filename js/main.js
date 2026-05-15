@@ -1631,10 +1631,17 @@ async function generateLayers() {
     let pdfText = "";
     if (file) {
       status.innerHTML = '<span class="spinner"></span>Reading PDF…';
-      const { text, pageCount } = await extractPdfText(file);
-      pdfText = text;
-      document.getElementById("genLayersPdfStatus").textContent =
-        `${file.name} — ${pageCount} page${pageCount === 1 ? "" : "s"}, ${pdfText.length.toLocaleString()} characters extracted${pdfText.length > 180000 ? " (only first 180k passed to AI)" : ""}.`;
+      try {
+        const { text, pageCount } = await extractPdfText(file);
+        pdfText = text;
+        document.getElementById("genLayersPdfStatus").textContent =
+          `${file.name} — ${pageCount} page${pageCount === 1 ? "" : "s"}, ${pdfText.length.toLocaleString()} characters extracted${pdfText.length > 180000 ? " (only first 180k passed to AI)" : ""}.`;
+      } catch (e) {
+        // pdfjs loads from a CDN; "Failed to fetch" here means the CDN URL
+        // (or the worker URL) couldn't be reached. Distinguish from a
+        // later Anthropic API failure so the user knows which to fix.
+        throw new Error(`PDF reader failed to load or parse the file: ${e.message}. If this says "Failed to fetch", check your network — pdfjs is loaded from cdn.jsdelivr.net.`);
+      }
     }
 
     const p = curr();
@@ -1642,7 +1649,14 @@ async function generateLayers() {
     const projectContext = includeCtx ? (p.context || "") : "";
 
     status.innerHTML = '<span class="spinner"></span>Extracting layers via Claude…';
-    const layers = await extractLayersFromPdf({ pdfText, projectContext });
+    let layers;
+    try {
+      layers = await extractLayersFromPdf({ pdfText, projectContext });
+    } catch (e) {
+      // Anthropic API failure. Could be a network drop, missing/expired
+      // API key (standalone mode), or a 4xx/5xx from the model endpoint.
+      throw new Error(`Claude API call failed: ${e.message}. If this says "Failed to fetch", check your network or the BYOK API key in Export → JSON backup.`);
+    }
 
     // Reconcile client-side now that Claude returns ONLY what it found in
     // the PDF. Every AI-returned layer is `fromPdf`; cross-check against
