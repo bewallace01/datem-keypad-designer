@@ -70,6 +70,13 @@ export const RULES = {
       "Header buttons are visual section dividers and should not run a macro. The DAT/EM exporter still " +
       "writes the DATA but operators can press them by accident.",
   },
+  "header-too-tall": {
+    label: "Header taller than 1 row",
+    detail:
+      "Section-header buttons read best as a thin label bar above the section they mark. Headers taller " +
+      "than 1 row eat keypad real estate and create weird spacing between sections. The fix sets height to 1 " +
+      "and keeps the width (so a 2x2 becomes 2x1).",
+  },
   "empty-labeled-button": {
     label: "Labeled button has no command",
     detail:
@@ -97,13 +104,25 @@ export function lintMacro(commands, opts = {}) {
   const text = commands || "";
   const trimmed = text.trim();
 
-  // Header buttons: only the header-has-commands rule applies.
+  // Header buttons: only the header-related rules apply.
   if (opts.isHeader) {
     if (trimmed) {
       warnings.push({
         level: "warn",
         ruleId: "header-has-commands",
         msg: "Header button has a macro. Clear it or convert this to a regular button.",
+      });
+    }
+    if (opts.height && opts.height > 1) {
+      warnings.push({
+        level: "warn",
+        ruleId: "header-too-tall",
+        msg: `Header is ${opts.height} rows tall — section headers read better as a 1-row label bar.`,
+        fixButton: (btn) => {
+          if ((btn.height || 1) <= 1) return false;
+          btn.height = 1;
+          return true;
+        },
       });
     }
     return warnings;
@@ -287,6 +306,7 @@ export function lintProject(project) {
       isHeader: !!btn.header,
       isLabeled: !!(btn.label && btn.label.trim()),
       hasBitmap: !!btn.bitmap,
+      height: btn.height || 1,
     });
     if (w.length) out[key] = w;
   }
@@ -312,6 +332,7 @@ export function findProjectIssues(project) {
         ruleId: w.ruleId,
         msg: w.msg,
         fix: w.fix || null,
+        fixButton: w.fixButton || null,
       });
     }
   }
@@ -331,15 +352,25 @@ export function countWarningsBySeverity(byKey) {
 }
 
 // Apply a finding's fix to the project's button. Returns true on change.
+// Two flavors of fix are supported:
+//   - `fix(commands)` returns a new command string (used by macro-level rules)
+//   - `fixButton(btn)` mutates the button in place and returns true on change
+//     (used by structural rules like header-too-tall that touch width/height)
 // Callers should recordChange() before and persist()+renderAll() after.
 export function applyFix(project, finding) {
-  if (!finding || !finding.fix) return false;
+  if (!finding) return false;
   const btn = project.buttons[finding.key];
   if (!btn) return false;
-  const next = finding.fix(btn.commands || "");
-  if (next === (btn.commands || "")) return false;
-  btn.commands = next;
-  return true;
+  if (finding.fixButton) {
+    return finding.fixButton(btn);
+  }
+  if (finding.fix) {
+    const next = finding.fix(btn.commands || "");
+    if (next === (btn.commands || "")) return false;
+    btn.commands = next;
+    return true;
+  }
+  return false;
 }
 
 // Apply every auto-fixable finding for a rule. Re-lints after each pass so
@@ -349,7 +380,7 @@ export function applyAllFixesForRule(project, ruleId, maxPasses = 4) {
   let totalChanged = 0;
   for (let pass = 0; pass < maxPasses; pass++) {
     const findings = findProjectIssues(project).filter(
-      (f) => f.ruleId === ruleId && f.fix,
+      (f) => f.ruleId === ruleId && (f.fix || f.fixButton),
     );
     if (!findings.length) break;
     let changed = 0;
