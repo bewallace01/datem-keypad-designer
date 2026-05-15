@@ -126,3 +126,32 @@ Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
 }
 
 Be efficient - keep notes to one short sentence. Aim for 25-45 buttons depending on grid size and context detail.`;
+
+export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting AutoCAD layer definitions from a project specification document. The user uploaded a PDF that may be either:
+
+  (a) A structured layer-table specification — layer code per row with columns like color, linetype, lineweight, description.
+  (b) A free-text project narrative that mentions feature codes / layer names in prose.
+  (c) A mix of both.
+
+You handle all three. Extract every distinct layer name you can identify with confidence. For each one, also extract:
+
+  - color: AutoCAD Color Index (ACI) 1-255 if the PDF says so, or maps clearly to a named color (red=1, yellow=2, green=3, cyan=4, blue=5, magenta=6, white=7). Default to 7 if not specified.
+  - linetype: name like CONTINUOUS, HIDDEN, DASHED, CENTER, PHANTOM. Default to CONTINUOUS if not specified.
+  - lineweight: in 1/100mm units (so 0.25mm = 25, 0.50mm = 50). Use -3 (ByLayer) if not specified.
+  - description: a short one-line description if the PDF gives one.
+
+ALSO included in the input below is a list of layer names already referenced by the user's keypad buttons. These are the "must have" layers — make sure every one of them appears in your output. If the PDF doesn't define a property for one, use the defaults above; if the PDF only mentions some of them and adds more, include those too (union of PDF + keypad).
+
+AVOID:
+- Inventing layer names not in either source.
+- Returning duplicate names (case-insensitive). Deduplicate, preferring the casing used by the keypad button.
+- Returning property values that aren't valid AutoCAD ACI / linetype / lineweight integers.
+
+OUTPUT FORMAT:
+Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
+{
+  "layers": [
+    {"name": "V-BLDG", "color": 7, "linetype": "CONTINUOUS", "lineweight": -3, "description": "Building outlines"},
+    {"name": "V-ROAD-EOP", "color": 1, "linetype": "CONTINUOUS", "lineweight": 25, "description": "Edge of pavement"}
+  ]
+}`;

@@ -5,7 +5,7 @@
 //   - Standalone mode: user provides API key, we add headers for direct browser access
 
 import { isArtifactMode, getApiKey, setApiKey } from "./storage.js";
-import { SINGLE_BUTTON_PROMPT, BULK_AUTOFILL_PROMPT } from "./prompts.js";
+import { SINGLE_BUTTON_PROMPT, BULK_AUTOFILL_PROMPT, LAYER_EXTRACTION_PROMPT } from "./prompts.js";
 
 const MODEL = "claude-sonnet-4-20250514";
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
@@ -242,4 +242,30 @@ export async function generateLayout({
   }
 
   return result.buttons;
+}
+
+// =========================================================================
+// Layer extraction (PDF + keypad button layer names → unified layer list)
+// =========================================================================
+export async function extractLayersFromPdf({ pdfText, keypadLayers, projectContext }) {
+  let userContent = "";
+  if (projectContext && projectContext.trim()) {
+    userContent += `PROJECT CONTEXT:\n${projectContext.trim()}\n\n`;
+  }
+  userContent +=
+    `LAYERS ALREADY REFERENCED BY KEYPAD BUTTONS (must all appear in your output):\n` +
+    (keypadLayers && keypadLayers.length
+      ? keypadLayers.map((n) => `  ${n}`).join("\n")
+      : "  (none — the project has no layer-switch buttons yet)") +
+    `\n\n`;
+  userContent +=
+    `PDF CONTENT (extracted text, may be a table or free narrative):\n` +
+    (pdfText ? pdfText.slice(0, 60000) : "(no PDF provided)");
+
+  const text = await callAnthropic(LAYER_EXTRACTION_PROMPT, userContent, 4000);
+  const result = parseJson(text);
+  if (!result.layers || !Array.isArray(result.layers)) {
+    throw new Error("Response missing layers array");
+  }
+  return result.layers;
 }
