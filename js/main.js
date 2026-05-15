@@ -507,16 +507,15 @@ async function applyAllSafeLintFixes() {
   const p = curr();
   recordChange();
   let total = 0;
-  // Run rules in dependency order: replace literal {ESC}/{RET} first so later
-  // rules see editor-form macros, then case corrections, then structural
-  // fixes, then the prefix tweak.
+  // Run rules in dependency order: normalize legacy ^C^C / `;` syntax first
+  // so later rules see {RET}-token editor form, then case corrections, then
+  // structural fixes.
   const order = [
-    "literal-esc-token",
+    "legacy-macro-syntax",
     "case-wrong-summit-keyword",
     "layer-not-closed",
     "dialog-pops",
     "osnap-not-transparent",
-    "missing-cancel-prefix",
     "header-too-tall",
     "header-too-narrow",
   ];

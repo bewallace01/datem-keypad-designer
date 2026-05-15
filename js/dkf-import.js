@@ -12,20 +12,16 @@
 //
 // See TASKS.md "P0 -> Tasks" for round-trip + schema-extension follow-ups.
 
-import { COLORS, newId } from "./state.js";
+import { COLORS, newId, normalizeMacro } from "./state.js";
 
 const DKF_COLS = 14;
 
-// Reverse of macroToDkf in dkf.js. The forward direction collapses both
-// `;` (Enter) and `\n` (chained command) into {RET}; we restore as `;`
-// because we can't tell them apart. The macro is functionally equivalent.
-// `{ESC}` is DAT/EM's Cancel keystroke; map it back to the AutoCAD-style
-// `^C^C` cancel that the editor and the rest of the codebase use.
+// The editor convention stores macros in DAT/EM's native form (literal {RET}
+// tokens). On import we keep {RET} as-is and just normalize any cancel
+// prefixes ({ESC}{ESC}, ^C^C) that may have come from third-party .dkf files
+// — DAT/EM's keystroke injection doesn't honor them either way.
 function dkfToMacro(data) {
-  return data
-    .replace(/\{ESC\}\{ESC\}/g, "^C^C")
-    .replace(/\{ESC\}/g, "^C^C")
-    .replace(/\{RET\}/g, ";");
+  return normalizeMacro(data);
 }
 
 function parseRgb(s) {
@@ -230,9 +226,9 @@ export function summarizeDropped(dropped) {
 // Walk a parsed .dkf project (the inner `project` returned by parseDkf) and
 // produce a Project-Context text block that the AI generator can consume.
 // Extracts:
-//   - Layer codes used in -LAYER;S;<NAME>;; switches, with the button label
-//     as a best-effort description
-//   - Block symbols used in -INSERT;<NAME>; calls, same treatment
+//   - Layer codes used in -LAYER{RET}SET{RET}<NAME>{RET}{RET} switches, with
+//     the button label as a best-effort description
+//   - Block symbols used in -INSERT{RET}<NAME>{RET} calls, same treatment
 //   - DAT/EM and Civil 3D drawing tools observed (AUTOARC3D, PSQR2D,
 //     AECCDRAWFEATURELINES, AECCCREATEPTMANUAL)
 //   - Summit / Capture / OSNAP operator controls present
@@ -256,7 +252,7 @@ export function deriveContextFromDkf(project, filename) {
     /ZoomIn/i, /ZoomOut/i, /NextStereoPair/i, /PreviousStereoPair/i,
     /ModelExtents/i, /Recenter/i,
     /CallCmd\s+EndFeature/i, /CallCmd\s+UndoLastVertex/i,
-    /'_-osnap;\w+/i,
+    /'_-osnap\{RET\}\w+/i,
   ];
 
   const note = (map, name, label) => {
@@ -273,11 +269,14 @@ export function deriveContextFromDkf(project, filename) {
     const cmd = btn.commands || "";
     if (!cmd) continue;
 
-    const layerRe = /-LAYER;S;([^;]+);;/gi;
+    // Editor macros are in {RET}-token form: `-LAYER{RET}SET{RET}NAME{RET}{RET}`
+    // and `-INSERT{RET}NAME{RET}`. Capture the NAME between the appropriate
+    // {RET} bracketing.
+    const layerRe = /-LAYER\{RET\}(?:SET|S)\{RET\}([^{]+?)\{RET\}\{RET\}/gi;
     let m;
     while ((m = layerRe.exec(cmd)) !== null) note(layers, m[1], btn.label);
 
-    const blockRe = /-INSERT;([^;]+);/gi;
+    const blockRe = /-INSERT\{RET\}([^{]+?)\{RET\}/gi;
     while ((m = blockRe.exec(cmd)) !== null) note(blocks, m[1], btn.label);
 
     for (const [re, name] of TOOL_PATTERNS) if (re.test(cmd)) tools.add(name);
@@ -310,8 +309,8 @@ export function deriveContextFromDkf(project, filename) {
     lines.push("");
   };
 
-  section("LAYER CODES (extracted from -LAYER;S;… commands)", layers);
-  section("BLOCK SYMBOLS (extracted from -INSERT;… commands)", blocks);
+  section("LAYER CODES (extracted from -LAYER{RET}SET{RET}… commands)", layers);
+  section("BLOCK SYMBOLS (extracted from -INSERT{RET}… commands)", blocks);
 
   if (tools.size) {
     lines.push("DRAWING TOOLS USED");

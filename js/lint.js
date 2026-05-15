@@ -8,7 +8,7 @@
 // False positives are annoying because users ignore them, which hides real
 // issues. When in doubt, "info" (advisory) over "warn" (will probably break).
 
-import { cellOwnerMap } from "./state.js";
+import { cellOwnerMap, normalizeMacro } from "./state.js";
 
 const SUMMIT_KEYWORDS = new Set([
   "Driver", "ZoomIn", "ZoomOut", "RaiseZ", "LowerZ", "StereoToggle",
@@ -25,15 +25,13 @@ const CAPTURE_COMMANDS_REQUIRING_CAPTURE = [
   "HV", "Joinit", "Phototex", "RaiseZ ", "snap",
 ];
 
-const CAD_LIKE_LINE = /^[\^A-Za-z_'-]/;
-
 // Per-rule metadata used by the lint modal. `label` is the section header;
 // `detail` is the explanation expanded under the header.
 export const RULES = {
   "layer-not-closed": {
-    label: "-LAYER not closed with ;;",
+    label: "-LAYER not closed with {RET}{RET}",
     detail:
-      "-LAYER;S;<name> needs a trailing ;; to exit the LAYER command. Without it, " +
+      "-LAYER{RET}SET{RET}<NAME> needs a trailing {RET}{RET} to exit the LAYER command. Without it, " +
       "AutoCAD stays at the LAYER prompt and eats the next input the operator gives it.",
   },
   "dialog-pops": {
@@ -42,23 +40,20 @@ export const RULES = {
       "LAYER, INSERT, and LAYOUT have two forms. The dashless form opens an AutoCAD dialog and " +
       "ignores the rest of the macro. Use -LAYER, -INSERT, -LAYOUT so the prompts run on the command line.",
   },
-  "missing-cancel-prefix": {
-    label: "Missing ^C^C prefix",
+  "legacy-macro-syntax": {
+    label: "Legacy AutoCAD CUI syntax",
     detail:
-      "AutoCAD commands should start with ^C^C so the keypad press cancels any command already running " +
-      "(STRETCH, an in-progress polyline, etc.). Summit keywords and transparent (') commands don't need it.",
+      "DAT/EM's keystroke injection doesn't honor `^C^C` (or {ESC}{ESC}) as cancel — it arrives as " +
+      "literal text and breaks the next prompt. The exporter also can't tell `;` (Enter) apart from " +
+      "`;;` (exit-LAYER) and chained `\\n` reliably. The fix rewrites the macro to use literal {RET} " +
+      "tokens, drops any cancel prefix, and upgrades `-LAYER;S;` to `-LAYER;SET;`. Matches the " +
+      "verified-working keypad format.",
   },
   "case-wrong-summit-keyword": {
     label: "Summit keyword has wrong case",
     detail:
       "Summit keywords are case-sensitive. RAISEZ, raisez, etc. aren't recognized — the canonical " +
       "casing (RaiseZ, LowerZ, ZLock…) is required.",
-  },
-  "literal-esc-token": {
-    label: "Literal {ESC} / {RET} token",
-    detail:
-      "{ESC} and {RET} are .dkf file-format tokens. In the editor they're sent to AutoCAD as literal text. " +
-      "Use ^C^C for cancel and ; (or a newline) for Enter.",
   },
   "osnap-not-transparent": {
     label: "OSNAP toggle not transparent",
@@ -98,15 +93,6 @@ export const RULES = {
       "advisory only, no fix needed.",
   },
 };
-
-// Build a fix that operates on the first line of a macro. The macro may have
-// multiple lines (chained commands). Returns null if no first line.
-function fixFirstLine(commands, transform) {
-  const lines = commands.split("\n");
-  if (!lines.length) return commands;
-  lines[0] = transform(lines[0]);
-  return lines.join("\n");
-}
 
 export function lintMacro(commands, opts = {}) {
   const warnings = [];
@@ -175,54 +161,44 @@ export function lintMacro(commands, opts = {}) {
 
   const lines = text.split("\n").map((l) => l.trim());
 
-  // R: literal .dkf tokens. Run first because the replacement settles the
-  // macro into editor form so later rules see ^C^C / ; instead of {ESC}/{RET}.
-  if (/\{ESC\}|\{RET\}/.test(text)) {
+  // R: legacy AutoCAD CUI syntax. The editor convention is literal {RET}
+  // tokens and no cancel prefix. ^C^C / {ESC}{ESC} arrive as literal text on
+  // DAT/EM and break the next prompt; `;;\n` produces three {RET}s back-to-
+  // back and re-invokes the previous command. Auto-fix rewrites via
+  // normalizeMacro, which is the same pass used at import + init-time
+  // migration.
+  if (/\^C|\{ESC\}|;|\n/.test(text)) {
     warnings.push({
       level: "warn",
-      ruleId: "literal-esc-token",
-      msg: "Macro contains {ESC} or {RET} — those are .dkf file tokens. Use ^C^C and ; in the editor.",
-      fix: (cmds) =>
-        cmds
-          .replace(/\{ESC\}\{ESC\}/g, "^C^C")
-          .replace(/\{ESC\}/g, "^C^C")
-          .replace(/\{RET\}/g, ";"),
+      ruleId: "legacy-macro-syntax",
+      msg: "Macro uses ^C^C / `;` / newlines — DAT/EM expects literal {RET} tokens. Auto-fix rewrites it.",
+      fix: (cmds) => normalizeMacro(cmds),
     });
   }
 
-  // R: `-LAYER;S;NAME` should end with `;;` to exit the LAYER command.
-  // Allow chained command after: the `;;` exits LAYER, then a newline / next
-  // line starts the chained command.
-  let layerNotClosed = false;
-  for (let i = 0; i < lines.length; i++) {
-    const ln = lines[i];
-    const m = ln.match(/-LAYER;[A-Za-z]+;[\w-]+/i);
-    if (m && !/-LAYER;[A-Za-z]+;[\w-]+;;/i.test(ln)) {
-      layerNotClosed = true;
-      warnings.push({
-        level: "warn",
-        ruleId: "layer-not-closed",
-        msg: `Line ${i + 1}: \`-LAYER;...\` is missing trailing \`;;\` — the LAYER command stays open.`,
-      });
-    }
-  }
-  if (layerNotClosed) {
-    // Single fix for the whole macro, attached to one (last) finding so
-    // "Apply" doesn't run N times.
-    warnings[warnings.length - 1].fix = (cmds) =>
-      cmds.replace(
-        /(-LAYER;[A-Za-z]+;[\w-]+)(;(?!;)|(?=$|\n))/gi,
-        (_, head) => `${head};;`,
-      );
+  // R: `-LAYER{RET}SET{RET}NAME` should end with `{RET}{RET}` to exit the
+  // LAYER command. After the migration pass everything's in {RET} form;
+  // this catches anyone manually editing a layer macro and forgetting the
+  // second closer.
+  if (/-LAYER\{RET\}(?:SET|S)\{RET\}[^{]+\{RET\}(?!\{RET\})/i.test(text)) {
+    warnings.push({
+      level: "warn",
+      ruleId: "layer-not-closed",
+      msg: "`-LAYER{RET}SET{RET}NAME{RET}` is missing the second {RET} — LAYER stays open and eats the next keystroke.",
+      fix: (cmds) => cmds.replace(
+        /(-LAYER\{RET\}(?:SET|S)\{RET\}[^{]+\{RET\})(?!\{RET\})/gi,
+        (_, head) => `${head}{RET}`,
+      ),
+    });
   }
 
-  // R: bare LAYER / INSERT / LAYOUT — dialog form. Treat ^C as a separator
-  // for boundary purposes (otherwise ^C^CINSERT looks like part of an
-  // identifier "CINSERT" to the regex engine). Underscore is also a
-  // separator: _INSERT is the international dialog form, _-INSERT is silent.
-  // `CLAYER` (the system variable) is exempt because it's preceded by `C`,
-  // which is in the identifier class.
-  const DIALOG_RE = /(?<=^|[\s;]|\^C)(_?)(LAYER|INSERT|LAYOUT)(?![A-Za-z0-9_])/g;
+  // R: bare LAYER / INSERT / LAYOUT — dialog form. The dashless form opens
+  // an AutoCAD dialog and ignores the rest of the macro. Boundary chars are
+  // start-of-string, whitespace, or `}` (end of a previous {RET} token).
+  // Underscore is also a separator (_INSERT is the international dialog
+  // form). `CLAYER` (system variable) is exempt because it's preceded by
+  // `C`, which is in the identifier class.
+  const DIALOG_RE = /(?<=^|[\s}])(_?)(LAYER|INSERT|LAYOUT)(?![A-Za-z0-9_])/g;
   let dialogFound = false;
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i];
@@ -240,36 +216,15 @@ export function lintMacro(commands, opts = {}) {
   if (dialogFound) {
     warnings[warnings.length - 1].fix = (cmds) =>
       cmds.replace(
-        /(?<=^|[\s;]|\^C)(_?)(LAYER|INSERT|LAYOUT)(?![A-Za-z0-9_])/g,
+        /(?<=^|[\s}])(_?)(LAYER|INSERT|LAYOUT)(?![A-Za-z0-9_])/g,
         (_, u, kw) => `${u || ""}-${kw}`,
       );
-  }
-
-  // R: missing ^C^C prefix on first line of a CAD macro. We skip lines that
-  // look like a transparent OSNAP without the `'` — the osnap-not-transparent
-  // rule will prepend the apostrophe, after which ^C^C would be wrong.
-  const first = lines[0];
-  if (first) {
-    const isSummit = SUMMIT_KEYWORDS.has(first);
-    const isCallCmd = first.startsWith("CallCmd");
-    const isTransparent = first.startsWith("'");
-    const hasCancel = /^(\^C){1,3}/.test(first);
-    const isOsnap = /^_?-osnap\b/i.test(first);
-    const looksCAD = CAD_LIKE_LINE.test(first);
-    if (looksCAD && !isSummit && !isCallCmd && !isTransparent && !hasCancel && !isOsnap) {
-      warnings.push({
-        level: "info",
-        ruleId: "missing-cancel-prefix",
-        msg: "Consider prefixing with `^C^C` so this button cancels any running command before starting.",
-        fix: (cmds) => fixFirstLine(cmds, (l) => "^C^C" + l.replace(/^\s+/, "")),
-      });
-    }
   }
 
   // R: case-wrong Summit keyword on a bare line.
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line || line.includes(";") || line.includes(" ")) continue;
+    if (!line || line.includes("{") || line.includes(" ")) continue;
     if (SUMMIT_KEYWORDS.has(line)) continue;
     const lower = line.toLowerCase();
     for (const kw of SUMMIT_KEYWORDS) {
@@ -292,13 +247,9 @@ export function lintMacro(commands, opts = {}) {
     }
   }
 
-  // R: -osnap not preceded by '. Editor convention is '_-osnap;<mode>.
-  // The 2-char lookbehind on `['_]` is the bit that took two tries: with a
-  // single-char lookbehind, `'_-osnap` matches as `-osnap` at the position
-  // after `_`, where the previous char is `_` (not `'`), and falsely fires.
-  // Excluding both `'` and `_` from the lookbehind ensures we only flag the
-  // bare `-osnap` (no `_`) and `_-osnap` (where the `_` itself is the start
-  // of the match, and the previous char before that `_` is checked).
+  // R: -osnap not preceded by '. Editor convention is '_-osnap{RET}<mode>.
+  // The 2-char lookbehind on `['_]` rejects both bare `-osnap` and `_-osnap`
+  // (without leading `'`); `'_-osnap` is the canonical transparent form.
   if (/(?<!['_])(_?-osnap)\b/i.test(text)) {
     warnings.push({
       level: "warn",

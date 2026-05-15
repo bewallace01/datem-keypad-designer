@@ -11,14 +11,18 @@ WORKFLOW CONTEXT (aerial photogrammetry):
 - Output typically becomes Civil 3D feature lines (especially as breaklines for surface generation), 3D polylines, COGO points, or AutoCAD blocks.
 - Operators rapidly switch layers, snap modes, and Z-handling modes mid-compilation. Buttons must NEVER pop dialogs that interrupt the active drawing command.
 
+MACRO FORMAT (CRITICAL — this matches what DAT/EM actually executes):
+- Use the literal token {RET} (curly braces, uppercase) to send an Enter keystroke between command-line inputs. Do NOT use `;` or `^C^C`.
+- Do NOT prefix macros with ^C^C or {ESC}. DAT/EM's keystroke injection does not honor `^C^C` as cancel — it arrives as literal text and breaks the next prompt. The working format omits any cancel entirely.
+- To exit -LAYER after setting the name, send two {RET}: `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (one Enter closes the name input, the second exits LAYER). Do NOT add another {RET} before the next chained command — that re-invokes the previous command.
+- Single-line macros only. Do not insert literal newlines between chained commands; just continue the {RET} stream.
+
 THREE COMMAND TYPES YOU CAN GENERATE:
 
 1. AutoCAD / Civil 3D command-line keyins (most common). Rules:
-   - Start most macros with ^C^C to cancel any running command first.
    - Prefix command names with _ for language-independent versions: _LINE, _3DPOLY, _PLINE, _LAYER.
    - Prefix with - to suppress dialog popups (CRITICAL during stereo digitizing): -LAYER instead of LAYER.
    - Use ' for transparent commands that run inside other commands without ending them: '_-osnap, '_zoom.
-   - Use ; to separate command-line inputs (acts as Enter). Empty fields between two semicolons accept defaults.
    - For stereo compilation, prefer DAT/EM Capture's tools by feature type: PSQR2D for buildings and right-angle features (auto-squares 90° corners), AUTOARC3D for general linear collection (curbs, edges, fences, hydro lines), _AECCDRAWFEATURELINES (Civil 3D feature line) for breaklines that go into a surface. DO NOT suggest _3DPOLY or Bspline — this user/team avoids them as a workflow rule.
    - Civil 3D commands (highly relevant for photogrammetry): _AECCDRAWFEATURELINES (draw feature lines), _AECCCREATEPTMANUAL (create COGO point - good for spot elevations), _AECCCREATESURFACE, _AECCADDFEATURELINEPI (add PI to feature line), _AECCEDITFEATURELINEELEV (edit feature line elevation), _AECCADDSURFBREAKLINES (add as breakline to a surface), _AECCQUICKPROFILE (quick profile through line).
    - Common AutoCAD: _LINE, _PLINE, _3DPOLY, _CIRCLE, _ARC, _ERASE, _COPY, _MOVE, _OFFSET, _TRIM, _EXTEND, _ZOOM, _PAN, _UNDO.
@@ -57,16 +61,16 @@ CATEGORY (color) TO PICK. Prefer a workflow-class category (roads/utility/dtm) o
 - "mixed" - Multi-step macro combining categories
 - "neutral" - cancel, system utility, anything that doesn't fit
 
-COMMON STEREO COMPILATION PATTERNS:
-- Set active feature-code layer (the most common compilation button): ^C^C-LAYER;S;LAYER_NAME;;
-- Switch layer + start linear collection (preferred default): ^C^C-LAYER;S;LAYER_NAME;;\\nAUTOARC3D
-- Switch layer + collect a building / right-angle feature: ^C^C-LAYER;S;V-BLDG;;\\nPSQR2D
-- Switch layer + insert a symbol/block: ^C^C-LAYER;S;LAYER_NAME;;\\n-INSERT;BLOCKNAME;
-- Z-lock for roof/water collection: ZLock (Summit keyword)
-- Set OSNAP transparently mid-collection: '_-osnap;end (or int, mid, cen, none)
-- Start a Civil 3D feature line (typical for breaklines): ^C^C-LAYER;S;BREAKLINE;;\\n_AECCDRAWFEATURELINES
-- Spot elevation as COGO point: ^C^C-LAYER;S;SPOT_ELEV;;\\n_AECCCREATEPTMANUAL
-- Multi-step macro: separate steps with newline characters. Each step that issues a CAD command starts with ^C^C unless it's transparent.
+COMMON STEREO COMPILATION PATTERNS (note: literal {RET} tokens, no cancel prefix, no embedded newlines):
+- Set active feature-code layer (the most common compilation button): -LAYER{RET}SET{RET}LAYER_NAME{RET}{RET}
+- Switch layer + start linear collection (preferred default): -LAYER{RET}SET{RET}LAYER_NAME{RET}{RET}AUTOARC3D
+- Switch layer + collect a building / right-angle feature: -LAYER{RET}SET{RET}V-BLDG{RET}{RET}PSQR2D
+- Switch layer + insert a symbol/block: -LAYER{RET}SET{RET}LAYER_NAME{RET}{RET}-INSERT{RET}BLOCKNAME{RET}
+- Z-lock for roof/water collection: ZLock (Summit keyword, no {RET} needed)
+- Set OSNAP transparently mid-collection: '_-osnap{RET}end (or int, mid, cen, none)
+- Start a Civil 3D feature line (typical for breaklines): -LAYER{RET}SET{RET}BREAKLINE{RET}{RET}_AECCDRAWFEATURELINES
+- Spot elevation as COGO point: -LAYER{RET}SET{RET}SPOT_ELEV{RET}{RET}_AECCCREATEPTMANUAL
+- Multi-step macro: concatenate steps directly with {RET} tokens. Do not insert real newlines (\\n) and do not prefix with ^C^C / {ESC}.
 - Never suggest _3DPOLY or Bspline. Use AUTOARC3D for general linear collection and _AECCDRAWFEATURELINES for breaklines.
 
 Always prefer dialog-suppressed (dash-prefix) and transparent (apostrophe-prefix) forms during stereo digitizing.
@@ -76,7 +80,7 @@ Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
 {
   "label": "short button label, max 14 characters",
   "color": "one of: summit, cad, capture, osnap, layer, roads, utility, dtm, mixed, neutral",
-  "commands": "the command string. Use \\n for multi-line.",
+  "commands": "the command string. Single line. Use literal {RET} tokens for Enter — never \\n, never ;, never ^C^C.",
   "notes": "one short sentence explaining what this does and any caveats"
 }
 
@@ -85,8 +89,8 @@ If the user has provided project context (feature codes, layer names, convention
 export const BULK_AUTOFILL_PROMPT = `You are designing a complete keypad layout for an aerial photogrammetry stereo compilation operator working in DAT/EM Summit Evolution + DAT/EM Capture for AutoCAD Civil 3D.
 
 You have all the same DAT/EM, Summit, AutoCAD, and Civil 3D knowledge as before:
-- Command syntax: ^C^C to cancel, leading _ for language-independent names, leading - to suppress dialogs, ' for transparent commands, ; for Enter.
-- Three command types: Summit keywords (Driver, RaiseZ, LowerZ, ZLock, ZUnlock, AutoLevel, ZoomIn, ZoomOut, ModelExtents, NextStereoPair, PreviousStereoPair, Recenter), AutoCAD/Civil 3D keyins (^C^C-LAYER;S;NAME;;, ^C^C_AECCDRAWFEATURELINES for breaklines, ^C^C_AECCCREATEPTMANUAL for COGO points, ^C^C-INSERT;BLOCK; for block insertion), DAT/EM Capture commands (AUTOARC3D for linear collection, PSQR for building corners, place cell, place lstring), and Capture CallCmds (CallCmd EndFeature, CallCmd UndoLastVertex, CallCmd StartFeature).
+- Macro syntax (DAT/EM-compatible): NEVER prefix with ^C^C or {ESC}. NEVER use `;` for Enter. Use the literal {RET} token for every Enter keystroke. Single line — no real newlines between chained commands. Leading _ for language-independent names, leading - to suppress dialogs, ' for transparent commands.
+- Three command types: Summit keywords (Driver, RaiseZ, LowerZ, ZLock, ZUnlock, AutoLevel, ZoomIn, ZoomOut, ModelExtents, NextStereoPair, PreviousStereoPair, Recenter — no {RET} needed), AutoCAD/Civil 3D keyins (-LAYER{RET}SET{RET}NAME{RET}{RET}, _AECCDRAWFEATURELINES for breaklines, _AECCCREATEPTMANUAL for COGO points, -INSERT{RET}BLOCK{RET} for block insertion), DAT/EM Capture commands (AUTOARC3D for linear collection, PSQR for building corners, place cell, place lstring), and Capture CallCmds (CallCmd EndFeature, CallCmd UndoLastVertex, CallCmd StartFeature).
 - DO NOT use _3DPOLY or Bspline. For linear ground-following features default to AUTOARC3D. For breaklines use _AECCDRAWFEATURELINES.
 - Categories: summit, cad, capture, osnap, layer, roads (roads/pavement/curbs/sidewalks), utility (power/water/gas/telephone/manholes/hydrants/poles), dtm (breaklines/spots/mass points/contours), mixed, neutral. Prefer roads/utility/dtm over the generic "layer" when a button is tied to that feature class.
 
@@ -94,7 +98,7 @@ You will design ALL buttons for a grid in one response. The grid is rows × cols
 
 LAYOUT STRATEGY (ADAPT to grid size):
 - TOP rows: Summit stereo controls. Driver is the most-used button - put it prominently. Include RaiseZ/LowerZ together, ZLock/ZUnlock together, AutoLevel, ZoomIn/ZoomOut, navigation (NextStereoPair/PreviousStereoPair, ModelExtents, Recenter).
-- NEXT rows: Drawing tools and Capture commands. Cancel (^C^C), AUTOARC3D (the default linear tool), feature line (_AECCDRAWFEATURELINES) for breaklines, COGO point (_AECCCREATEPTMANUAL) for spots, end feature, undo vertex.
+- NEXT rows: Drawing tools and Capture commands. AUTOARC3D (the default linear tool), feature line (_AECCDRAWFEATURELINES) for breaklines, COGO point (_AECCCREATEPTMANUAL) for spots, end feature, undo vertex.
 - MIDDLE rows: LAYER SWITCHES - this is the bulk of the keypad. One button per feature code from the project context. For features that always pair with a specific drawing tool, make those layer buttons multi-step macros that switch the layer AND start the right tool:
   - BUILDINGS / STRUCTURES / right-angle features → PSQR2D
   - BREAKLINE → _AECCDRAWFEATURELINES (Civil 3D feature line)

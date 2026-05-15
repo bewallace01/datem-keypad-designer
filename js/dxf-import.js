@@ -333,13 +333,13 @@ export function buttonFromBlock(block, opts = {}) {
 
   // Insert chain — the trailing `;` leaves AutoCAD at the insertion-point
   // prompt for the operator's click.
-  let insert = `-INSERT;${block.name};`;
-  if (scale && scale !== 1) insert += `S;${scale};`;
-  if (rotation) insert += `R;${rotation};`;
+  let insert = `-INSERT{RET}${block.name}{RET}`;
+  if (scale && scale !== 1) insert += `S{RET}${scale}{RET}`;
+  if (rotation) insert += `R{RET}${rotation}{RET}`;
 
   const cmds = layer === "0"
-    ? `^C^C${insert}`
-    : `^C^C-LAYER;S;${layer};;\n${insert}`;
+    ? insert
+    : `-LAYER{RET}SET{RET}${layer}{RET}{RET}${insert}`;
 
   const notes = [
     `Insert block ${block.name}`,
@@ -404,11 +404,11 @@ export function drawingToolForLayer(name) {
 // the inferred drawing tool (3D polyline, feature line, etc.).
 export function buttonFromLayer(layer, { includeDrawingTool = true, linkedBlock = null } = {}) {
   let tool = null;
-  if (linkedBlock) tool = `-INSERT;${linkedBlock.name};`;
+  if (linkedBlock) tool = `-INSERT{RET}${linkedBlock.name}{RET}`;
   else if (includeDrawingTool) tool = drawingToolForLayer(layer.name);
   const commands = tool
-    ? `^C^C-LAYER;S;${layer.name};;\n${tool}`
-    : `^C^C-LAYER;S;${layer.name};;`;
+    ? `-LAYER{RET}SET{RET}${layer.name}{RET}{RET}${tool}`
+    : `-LAYER{RET}SET{RET}${layer.name}{RET}{RET}`;
   // When a block is linked, prefer the block's friendlier short name as the
   // label — it reads more like the action ("Utility Pole") than the layer
   // identifier ("V-UTIL-POWR-POLE").
@@ -542,18 +542,17 @@ export const DEFAULT_CONTROL_BUTTONS = [
   { row: 0, col: 10, label: "Model Ext",  color: "summit",  commands: "ModelExtents",       notes: "Zoom to current model extents" },
   { row: 0, col: 11, label: "Recenter",   color: "summit",  commands: "Recenter",           notes: "Recenter cursor in view" },
   // Row 1 — Drawing tools, Capture call-commands, OSNAP toggles
-  { row: 1, col: 0,  label: "Cancel",     color: "neutral", commands: "^C^C",               notes: "Cancel any running command" },
-  { row: 1, col: 1,  label: "Auto Arc",   color: "capture", commands: "AUTOARC3D",          notes: "DAT/EM Capture 3D auto-arc — default linear collection" },
-  { row: 1, col: 2,  label: "Feat Line",  color: "cad",     commands: "^C^C_AECCDRAWFEATURELINES", notes: "Civil 3D feature line (use for breaklines)" },
-  { row: 1, col: 3,  label: "COGO Point", color: "cad",     commands: "^C^C_AECCCREATEPTMANUAL",   notes: "Civil 3D COGO point (good for spot elevations)" },
-  { row: 1, col: 4,  label: "End Feat",   color: "capture", commands: "CallCmd EndFeature",        notes: "End the current feature being collected" },
-  { row: 1, col: 5,  label: "Undo Vtx",   color: "capture", commands: "CallCmd UndoLastVertex",    notes: "Back up one vertex on active feature" },
-  { row: 1, col: 6,  label: "PSQR 2D",    color: "capture", commands: "PSQR2D",                    notes: "DAT/EM place-square — auto-orthogonal corners for buildings" },
-  { row: 1, col: 7,  label: "Endpoint",   color: "osnap",   commands: "'_-osnap;end",              notes: "Transparent OSNAP to endpoint" },
-  { row: 1, col: 8,  label: "Intersect",  color: "osnap",   commands: "'_-osnap;int",              notes: "Transparent OSNAP to intersection" },
-  { row: 1, col: 9,  label: "Midpoint",   color: "osnap",   commands: "'_-osnap;mid",              notes: "Transparent OSNAP to midpoint" },
-  { row: 1, col: 10, label: "Nearest",    color: "osnap",   commands: "'_-osnap;nea",              notes: "Transparent OSNAP to nearest" },
-  { row: 1, col: 11, label: "Snap None",  color: "osnap",   commands: "'_-osnap;none",             notes: "Turn off OSNAP" },
+  { row: 1, col: 1,  label: "Auto Arc",   color: "capture", commands: "AUTOARC3D",                  notes: "DAT/EM Capture 3D auto-arc — default linear collection" },
+  { row: 1, col: 2,  label: "Feat Line",  color: "cad",     commands: "_AECCDRAWFEATURELINES",      notes: "Civil 3D feature line (use for breaklines)" },
+  { row: 1, col: 3,  label: "COGO Point", color: "cad",     commands: "_AECCCREATEPTMANUAL",        notes: "Civil 3D COGO point (good for spot elevations)" },
+  { row: 1, col: 4,  label: "End Feat",   color: "capture", commands: "CallCmd EndFeature",         notes: "End the current feature being collected" },
+  { row: 1, col: 5,  label: "Undo Vtx",   color: "capture", commands: "CallCmd UndoLastVertex",     notes: "Back up one vertex on active feature" },
+  { row: 1, col: 6,  label: "PSQR 2D",    color: "capture", commands: "PSQR2D",                     notes: "DAT/EM place-square — auto-orthogonal corners for buildings" },
+  { row: 1, col: 7,  label: "Endpoint",   color: "osnap",   commands: "'_-osnap{RET}end",           notes: "Transparent OSNAP to endpoint" },
+  { row: 1, col: 8,  label: "Intersect",  color: "osnap",   commands: "'_-osnap{RET}int",           notes: "Transparent OSNAP to intersection" },
+  { row: 1, col: 9,  label: "Midpoint",   color: "osnap",   commands: "'_-osnap{RET}mid",           notes: "Transparent OSNAP to midpoint" },
+  { row: 1, col: 10, label: "Nearest",    color: "osnap",   commands: "'_-osnap{RET}nea",           notes: "Transparent OSNAP to nearest" },
+  { row: 1, col: 11, label: "Snap None",  color: "osnap",   commands: "'_-osnap{RET}none",          notes: "Turn off OSNAP" },
 ];
 
 // One row past the last default-control row; layer placement should start

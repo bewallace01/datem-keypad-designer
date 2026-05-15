@@ -527,7 +527,7 @@
     <div class="problem-grid">
       <div>
         <p style="color: var(--text-dim); line-height: 1.7;">
-          Setting up a DAT/EM keypad means writing AutoCAD macros by hand. Every prefix matters: <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">^C^C</span> cancels any running command, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">_</span> makes commands language-independent, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">-</span> suppresses dialogs (critical — a popped dialog interrupts your active drawing command), <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">'</span> makes a command transparent, and semicolons act as Enter.
+          Setting up a DAT/EM keypad means writing macros by hand in a keystroke-injection format. Every token matters: <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">{RET}</span> sends Enter, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">_</span> makes commands language-independent, <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">-</span> suppresses dialogs (critical — a popped dialog interrupts your active drawing command), and <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">'</span> makes a command transparent. (No <span class="mono" style="color:var(--text);background:var(--bg-elev);padding:2px 6px;border-radius:3px;font-size:13px;">^C^C</span>; the keypad doesn't honor it.)
         </p>
         <p style="color: var(--text-dim); line-height: 1.7;">
           For the operator who lives in this syntax, fine. For the rest of us, it's painful. Mistakes are silent and only surface when the button doesn't work the way you want during a stereo session.
@@ -542,8 +542,7 @@
 and start a 3D polyline"</pre>
         <div class="arrow">↓</div>
         <div class="label">It generates</div>
-<pre style="color:var(--c-cad)">^C^C-LAYER;S;ROAD_EOP;;
-_3DPOLY</pre>
+<pre style="color:var(--c-cad)">-LAYER{RET}SET{RET}ROAD_EOP{RET}{RET}_3DPOLY</pre>
       </div>
     </div>
   </div>
