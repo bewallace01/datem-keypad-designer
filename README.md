@@ -11,11 +11,10 @@ An AI-assisted button designer for **aerial photogrammetry stereo compilation** 
 Configuring the DAT/EM Keypad means writing macro strings like:
 
 ```
-^C^C-LAYER;S;ROAD_EOP;;
-_3DPOLY
+-LAYER{RET}SET{RET}ROAD_EOP{RET}{RET}_3DPOLY
 ```
 
-Every prefix matters. `^C^C` cancels any running command. The leading `_` makes it language-independent. The `-` suppresses dialog boxes (critical during digitizing — a popped dialog interrupts the active drawing command). Semicolons act as `Enter`. The empty `;;` accepts default options.
+Every token matters. `{RET}` is the literal Enter keystroke that DAT/EM injects into AutoCAD. The leading `_` makes commands language-independent. The `-` suppresses dialog boxes (critical during digitizing — a popped dialog interrupts the active drawing command). Two `{RET}` in a row close the LAYER command.
 
 If you live in this syntax all day, fine. If you're a compiler trying to set up a new project keypad, it's a pain. This tool generates correct macros from plain English, organizes buttons by category, and exports a clean reference doc.
 
@@ -31,7 +30,7 @@ If you live in this syntax all day, fine. If you're a compiler trying to set up 
 - **Drag to rearrange.** Direct manipulation of the grid; multi-cell spans move as a unit.
 - **Undo / redo.** Cmd/Ctrl-Z covers every mutation: bulk ops, drag, AI generation, DXF import, grid resize.
 - **Templates.** Mark any project as a ★ template; new projects can clone from any existing one.
-- **Macro lint.** Warns on missing `^C^C`, bare `LAYER` instead of `-LAYER`, missing trailing `;;`, case-wrong Summit keywords, and unloaded Capture commands.
+- **Macro lint.** Warns on legacy AutoCAD CUI syntax (`^C^C`, `;`), bare `LAYER` instead of `-LAYER`, missing trailing `{RET}{RET}` on `-LAYER`, non-transparent `-osnap`, case-wrong Summit keywords, and unloaded Capture commands.
 - **10-color palette + workflow categories.** Roads, utilities, DTM, summit, layer, etc. — colors match real DAT/EM keypads.
 - **Local-first.** All data stored in browser `localStorage`. No accounts. AI features (BYOK) call `api.anthropic.com` directly from your browser.
 

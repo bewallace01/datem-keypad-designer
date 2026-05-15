@@ -65,7 +65,7 @@
       <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD</button>
       <button onclick="openAutofill()" title="Auto-generate a complete keypad layout from your project context" class="primary"><span class="btn-icon" data-icon="sparkles"></span>Auto-fill</button>
       <button onclick="openContext()" title="Edit project feature codes and conventions"><span class="btn-icon" data-icon="fileText"></span>Context</button>
-      <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (missing ^C^C, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
+      <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (legacy ^C^C / ; syntax, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
       <button onclick="clearAll()" class="icon danger" title="Clear all buttons in this project (cannot be undone via a single click — use Cmd/Ctrl+Z if you change your mind)"><span data-icon="trash"></span></button>
     </div>
     <div class="spacer"></div>
@@ -169,18 +169,17 @@
 
         <div class="field">
           <label>Commands</label>
-          <textarea id="fCommands" rows="6" placeholder="^C^C_PLINE&#10;_LAYER;S;UTIL_WATER;;"></textarea>
+          <textarea id="fCommands" rows="6" placeholder="-LAYER{RET}SET{RET}UTIL_WATER{RET}{RET}_PLINE"></textarea>
           <div id="lintList" class="lint-list"></div>
           <div class="examples">
             <div class="ex-title">Examples (click to insert)</div>
             <div class="ex-group">AutoCAD / Civil 3D</div>
-            <div class="ex-item">^C^C<span class="ex-desc"> — cancel running command</span></div>
-            <div class="ex-item">^C^C_3DPOLY<span class="ex-desc"> — start 3D polyline</span></div>
-            <div class="ex-item">^C^C-LAYER;S;LAYER_NAME;;<span class="ex-desc"> — set active layer</span></div>
-            <div class="ex-item">^C^C-INSERT;BLOCKNAME;<span class="ex-desc"> — insert a block (then click)</span></div>
-            <div class="ex-item">'_-osnap;end<span class="ex-desc"> — set OSNAP to endpoint</span></div>
-            <div class="ex-item">^C^C_AECCDRAWFEATURELINES<span class="ex-desc"> — Civil 3D feature line</span></div>
-            <div class="ex-item">^C^C_AECCCREATEPTMANUAL<span class="ex-desc"> — create COGO point</span></div>
+            <div class="ex-item">_3DPOLY<span class="ex-desc"> — start 3D polyline</span></div>
+            <div class="ex-item">-LAYER{RET}SET{RET}LAYER_NAME{RET}{RET}<span class="ex-desc"> — set active layer</span></div>
+            <div class="ex-item">-INSERT{RET}BLOCKNAME{RET}<span class="ex-desc"> — insert a block (then click)</span></div>
+            <div class="ex-item">'_-osnap{RET}end<span class="ex-desc"> — set OSNAP to endpoint (transparent)</span></div>
+            <div class="ex-item">_AECCDRAWFEATURELINES<span class="ex-desc"> — Civil 3D feature line</span></div>
+            <div class="ex-item">_AECCCREATEPTMANUAL<span class="ex-desc"> — create COGO point</span></div>
             <div class="ex-group">DAT/EM Capture</div>
             <div class="ex-item">AUTOARC3D<span class="ex-desc"> — 3D auto-arc (preferred for stereo)</span></div>
             <div class="ex-item">AUTOARC2D<span class="ex-desc"> — 2D auto-arc</span></div>
@@ -428,13 +427,13 @@
       <p class="guide-intro">If you're new to keypad-driven aerial photogrammetry compilation in Civil 3D + DAT/EM Summit Evolution, this is the 5-minute primer. Skim once, come back when needed.</p>
 
       <h3>1. Macro syntax — the prefixes that matter</h3>
-      <p>Every keypad button sends a command string. Five prefixes are doing the heavy lifting:</p>
+      <p>Every keypad button sends a command string. The DAT/EM keypad executes it as a stream of keystrokes, so the format mirrors what you'd type at the AutoCAD command line:</p>
       <ul>
-        <li><code>^C^C</code> — cancels any running command before yours starts. Always use it on the first line of an AutoCAD/Civil 3D macro, or your button gets eaten by whatever was already running.</li>
+        <li><code>{RET}</code> — the literal token for Enter. Use it between every prompt: <code>-LAYER{RET}SET{RET}BLDG{RET}{RET}</code> is <em>dash-LAYER, Enter, SET, Enter, BLDG, Enter, Enter</em>. The trailing <code>{RET}{RET}</code> exits the LAYER command — forgetting the second one leaves LAYER hanging and eating your next keypress.</li>
         <li><code>_</code> — language-independent command name. <code>_LINE</code> works on French Civil 3D; bare <code>LINE</code> might not. Use it on every AutoCAD command.</li>
         <li><code>-</code> — suppresses the dialog popup. <code>LAYER</code> opens the Layer Manager (breaks your collection rhythm). <code>-LAYER</code> runs at the command line. Always use the dash form while digitizing.</li>
-        <li><code>'</code> — transparent command. Runs inside the current command without ending it. Mostly for mid-feature OSNAP toggles: <code>'_-osnap;end</code>.</li>
-        <li><code>;</code> — equals pressing Enter. <code>-LAYER;S;BLDG;;</code> is <em>dash-LAYER, Enter, Set, Enter, BLDG, Enter, Enter</em>. The trailing <code>;;</code> exits the LAYER command — forgetting it leaves LAYER hanging and eating your next keypress.</li>
+        <li><code>'</code> — transparent command. Runs inside the current command without ending it. Mostly for mid-feature OSNAP toggles: <code>'_-osnap{RET}end</code>.</li>
+        <li><strong>No <code>^C^C</code>, no <code>;</code>, no real newlines.</strong> The AutoCAD CUI conventions (<code>^C^C</code> for cancel, <code>;</code> for Enter, multi-line macros with <code>\n</code>) do <em>not</em> work on a DAT/EM keypad — <code>^C^C</code> arrives as literal text and breaks the next prompt. Use only the format above.</li>
       </ul>
 
       <h3>2. Three command types, three places they run</h3>
@@ -447,17 +446,17 @@
       <h3>3. Patterns you'll use constantly</h3>
       <dl class="guide-dl">
         <dt>Switch layer + start linear collection</dt>
-        <dd><code>^C^C-LAYER;S;V-ROAD-PAVE;;\nAUTOARC3D</code> — DAT/EM Capture's 3D auto-arc, the default for ground-following linear features (roads, curbs, fences, edges, hydro).</dd>
+        <dd><code>-LAYER{RET}SET{RET}V-ROAD-PAVE{RET}{RET}AUTOARC3D</code> — DAT/EM Capture's 3D auto-arc, the default for ground-following linear features (roads, curbs, fences, edges, hydro).</dd>
         <dt>Switch layer + collect a building / right-angle feature</dt>
-        <dd><code>^C^C-LAYER;S;V-BLDG;;\nPSQR2D</code> — DAT/EM "place square" auto-squares 90° corners. Use for buildings, decks, foundations, porches, garages, retaining-wall corners, anything orthogonal.</dd>
+        <dd><code>-LAYER{RET}SET{RET}V-BLDG{RET}{RET}PSQR2D</code> — DAT/EM "place square" auto-squares 90° corners. Use for buildings, decks, foundations, porches, garages, retaining-wall corners, anything orthogonal.</dd>
         <dt>Switch layer + insert a symbol</dt>
-        <dd><code>^C^C-LAYER;S;V-UTIL-POWR-POLE;;\n-INSERT;POLE;</code> — point features. Macro ends at the insertion-point prompt; you click in the stereo image to place.</dd>
+        <dd><code>-LAYER{RET}SET{RET}V-UTIL-POWR-POLE{RET}{RET}-INSERT{RET}POLE{RET}</code> — point features. Macro ends at the insertion-point prompt; you click in the stereo image to place.</dd>
         <dt>Breakline for surface generation</dt>
-        <dd><code>^C^C-LAYER;S;V-TOPO-BRKL;;\n_AECCDRAWFEATURELINES</code> — Civil 3D feature line. These can be added to a TIN as actual surface breaklines.</dd>
+        <dd><code>-LAYER{RET}SET{RET}V-TOPO-BRKL{RET}{RET}_AECCDRAWFEATURELINES</code> — Civil 3D feature line. These can be added to a TIN as actual surface breaklines.</dd>
         <dt>Spot elevation as COGO point</dt>
-        <dd><code>^C^C-LAYER;S;V-TOPO-SPOT;;\n_AECCCREATEPTMANUAL</code> — surveyable, gets a number, drops on the right layer.</dd>
+        <dd><code>-LAYER{RET}SET{RET}V-TOPO-SPOT{RET}{RET}_AECCCREATEPTMANUAL</code> — surveyable, gets a number, drops on the right layer.</dd>
         <dt>Mid-feature snap toggle</dt>
-        <dd><code>'_-osnap;end</code> — transparent OSNAP set, doesn't interrupt the active drawing command.</dd>
+        <dd><code>'_-osnap{RET}end</code> — transparent OSNAP set, doesn't interrupt the active drawing command.</dd>
       </dl>
 
       <h3>4. Stereo workflow tips</h3>
@@ -479,9 +478,9 @@
 
       <h3>6. Common mistakes that bite</h3>
       <ul>
-        <li><strong>Forgetting <code>^C^C</code></strong> — your macro starts mid-way through a still-running command. Almost always wrong.</li>
+        <li><strong>Using <code>^C^C</code> or <code>;</code></strong> — these are AutoCAD CUI conventions and arrive as literal text on a DAT/EM keypad, breaking the next prompt. Use <code>{RET}</code> tokens and no cancel prefix.</li>
         <li><strong>Bare <code>LAYER</code></strong> instead of <code>-LAYER</code> — the dialog pops during your collection.</li>
-        <li><strong>Missing trailing <code>;;</code></strong> on <code>-LAYER;S;NAME;;</code> — LAYER stays open and consumes your next keypress.</li>
+        <li><strong>Missing trailing <code>{RET}{RET}</code></strong> on <code>-LAYER{RET}SET{RET}NAME{RET}{RET}</code> — LAYER stays open and consumes your next keypress.</li>
         <li><strong>Case-wrong Summit keywords</strong> — <code>driver</code> is silent, only <code>Driver</code> works.</li>
         <li><strong>Capture commands without Capture loaded</strong> — layer switches fine, then <code>AUTOARC3D</code> hits an unknown command and you're staring at an empty command line.</li>
         <li><strong>Two keypads open at once</strong> — one wins the connection, the other quietly drops commands. Close the extra.</li>

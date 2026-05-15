@@ -81,8 +81,9 @@ DRAWING-TOOL PREFERENCES
 - Spot elevations + mass points placed as Civil 3D COGO points (_AECCCREATEPTMANUAL)
 - Buildings collected with PSQR2D for 90° corner squaring
 - Curved features collected with AUTOARC3D (DAT/EM Capture)
-- All layer-switch buttons must run -LAYER;S;<NAME>;; with the literal {ESC}{ESC}
-  prefix so AutoCAD cancels any active command first
+- All layer-switch buttons must use the {RET}-token macro form
+  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  keystroke injection does not honor ^C^C / {ESC} as cancel)
 
 OPERATOR WORKFLOW (typical pass order)
 1. Project setup — open stereo pair, auto-level, set ground Z mode
@@ -180,8 +181,9 @@ DRAWING-TOOL PREFERENCES
 - All linework collected as 3D polylines
 - Buildings collected with PSQR2D for 90° corner squaring
 - Curved features collected with AUTOARC3D (DAT/EM Capture)
-- All layer-switch buttons must run -LAYER;S;<NAME>;; with the literal {ESC}{ESC}
-  prefix so AutoCAD cancels any active command first
+- All layer-switch buttons must use the {RET}-token macro form
+  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  keystroke injection does not honor ^C^C / {ESC} as cancel)
 - Do NOT include Civil 3D feature line, COGO point, or surface-edit buttons
 
 OPERATOR WORKFLOW (typical pass order)
@@ -281,12 +283,14 @@ PROPERTY       Property line, 3D polyline
 DRAWING-TOOL PREFERENCES
 - Linear utilities collected as 3D polylines (one polyline per run, vertex
   on every pole / equipment)
-- Point equipment collected as block-inserts using -INSERT;<blockname>;;
-  so the operator stops at the insertion-point prompt and picks on-screen
+- Point equipment collected as block-inserts using
+  `-INSERT{RET}<blockname>{RET}` so the operator stops at the
+  insertion-point prompt and picks on-screen
 - Where a standard symbol block isn't available, fall back to COGO point
   with description code
-- All layer-switch buttons must run -LAYER;S;<NAME>;; with the literal {ESC}{ESC}
-  prefix so AutoCAD cancels any active command first
+- All layer-switch buttons must use the {RET}-token macro form
+  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  keystroke injection does not honor ^C^C / {ESC} as cancel)
 - INSERT snap toggle must be easy to reach — equipment-to-line tie-ins
   rely on it constantly
 

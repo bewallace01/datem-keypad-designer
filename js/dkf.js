@@ -13,7 +13,7 @@
 // - User's rows x cols placed top-left; remaining slots are empty buttons
 // - One LABEL block per button (no stacked text)
 
-import { colorByID, cellOwnerMap } from "./state.js";
+import { colorByID, cellOwnerMap, normalizeMacro } from "./state.js";
 
 export const DKF_COLS = 14;
 export const DKF_ROWS = 18;
@@ -24,20 +24,16 @@ function hexToRgb(hex) {
   return `${(n >> 16) & 0xff};${(n >> 8) & 0xff};${n & 0xff}`;
 }
 
-// AutoCAD-style macro -> DAT/EM .dkf macro.
-// DAT/EM Keypad Controller types macros into AutoCAD via SendKeys-style
-// keystroke injection, so AutoCAD's CUI `^C` (Ctrl+C) convention is not
-// honored — `^C^C-LAYER;S;NAME;;` arrives at the command line as the literal
-// string `^C^C-LAYER`, fails, and then `S` triggers STRETCH. Translate both
-// `^C^C` and lone `^C` into DAT/EM's keystroke token `{ESC}` (the Cancel key).
-// `;` and newlines both become {RET}; the line must end in {RET}.
+// Editor-form macro -> .dkf DATA line.
+//
+// The editor convention stores macros in DAT/EM-ready form (literal {RET}
+// tokens, no cancel prefix, single line). Export is just a normalization
+// pass (catches anything pasted in legacy ^C^C / `;` form) plus a trailing
+// {RET} to commit the final keystroke. DAT/EM's keystroke injection does
+// not honor `^C^C` or `{ESC}` as cancel, so normalizeMacro strips them.
 export function macroToDkf(commands) {
-  if (!commands) return "";
-  let out = commands
-    .replace(/\^C\^C/g, "{ESC}{ESC}")
-    .replace(/\^C/g, "{ESC}")
-    .replace(/[;\n]/g, "{RET}");
-  if (!out.endsWith("{RET}")) out += "{RET}";
+  let out = normalizeMacro(commands);
+  if (out && !out.endsWith("{RET}")) out += "{RET}";
   return out;
 }
 
