@@ -82,7 +82,7 @@ DRAWING-TOOL PREFERENCES
 - Buildings collected with PSQR2D for 90° corner squaring
 - Curved features collected with AUTOARC3D (DAT/EM Capture)
 - All layer-switch buttons must use the {RET}-token macro form
-  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  -LAYER{RET}SET{RET}<NAME>{RET}{RET} (no cancel prefix; DAT/EM's
   keystroke injection does not honor ^C^C / {ESC} as cancel)
 
 OPERATOR WORKFLOW (typical pass order)
@@ -182,7 +182,7 @@ DRAWING-TOOL PREFERENCES
 - Buildings collected with PSQR2D for 90° corner squaring
 - Curved features collected with AUTOARC3D (DAT/EM Capture)
 - All layer-switch buttons must use the {RET}-token macro form
-  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  -LAYER{RET}SET{RET}<NAME>{RET}{RET} (no cancel prefix; DAT/EM's
   keystroke injection does not honor ^C^C / {ESC} as cancel)
 - Do NOT include Civil 3D feature line, COGO point, or surface-edit buttons
 
@@ -284,12 +284,12 @@ DRAWING-TOOL PREFERENCES
 - Linear utilities collected as 3D polylines (one polyline per run, vertex
   on every pole / equipment)
 - Point equipment collected as block-inserts using
-  `-INSERT{RET}<blockname>{RET}` so the operator stops at the
+  -INSERT{RET}<blockname>{RET} so the operator stops at the
   insertion-point prompt and picks on-screen
 - Where a standard symbol block isn't available, fall back to COGO point
   with description code
 - All layer-switch buttons must use the {RET}-token macro form
-  `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (no cancel prefix; DAT/EM's
+  -LAYER{RET}SET{RET}<NAME>{RET}{RET} (no cancel prefix; DAT/EM's
   keystroke injection does not honor ^C^C / {ESC} as cancel)
 - INSERT snap toggle must be easy to reach — equipment-to-line tie-ins
   rely on it constantly
