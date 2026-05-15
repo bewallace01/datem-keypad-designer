@@ -41,13 +41,15 @@ export const RULES = {
       "ignores the rest of the macro. Use -LAYER, -INSERT, -LAYOUT so the prompts run on the command line.",
   },
   "legacy-macro-syntax": {
-    label: "Legacy AutoCAD CUI syntax",
+    label: "Macro not in DAT/EM-canonical form",
     detail:
       "DAT/EM's keystroke injection doesn't honor `^C^C` (or {ESC}{ESC}) as cancel — it arrives as " +
       "literal text and breaks the next prompt. The exporter also can't tell `;` (Enter) apart from " +
-      "`;;` (exit-LAYER) and chained `\\n` reliably. The fix rewrites the macro to use literal {RET} " +
-      "tokens, drops any cancel prefix, and upgrades `-LAYER;S;` to `-LAYER;SET;`. Matches the " +
-      "verified-working keypad format.",
+      "`;;` (exit-LAYER) and chained `\\n` reliably. Imported .dkf files often use `-LAYER{RET}S{RET}` " +
+      "(single-letter shortcut) which works in plain AutoCAD but is less reliable through keystroke " +
+      "injection. The fix rewrites the macro to use literal {RET} tokens, drops any cancel prefix, " +
+      "and upgrades both `-LAYER;S;` and `-LAYER{RET}S{RET}` to use the full `SET` keyword. Matches " +
+      "the verified-working keypad format.",
   },
   "case-wrong-summit-keyword": {
     label: "Summit keyword has wrong case",
@@ -161,17 +163,18 @@ export function lintMacro(commands, opts = {}) {
 
   const lines = text.split("\n").map((l) => l.trim());
 
-  // R: legacy AutoCAD CUI syntax. The editor convention is literal {RET}
-  // tokens and no cancel prefix. ^C^C / {ESC}{ESC} arrive as literal text on
-  // DAT/EM and break the next prompt; `;;\n` produces three {RET}s back-to-
-  // back and re-invokes the previous command. Auto-fix rewrites via
-  // normalizeMacro, which is the same pass used at import + init-time
-  // migration.
-  if (/\^C|\{ESC\}|;|\n/.test(text)) {
+  // R: non-canonical macro syntax. Fires whenever the macro differs from
+  // what normalizeMacro would emit — covers legacy CUI form (^C^C, `;`,
+  // `;;\n`), the .dkf cancel prefix ({ESC}{ESC}), AND the LAYER-Set shortcut
+  // (`-LAYER{RET}S{RET}` instead of `-LAYER{RET}SET{RET}`) that survives
+  // intact through import of third-party .dkf files. Driving the check off
+  // normalizeMacro means every shape it knows how to fix surfaces here.
+  const normalized = normalizeMacro(text);
+  if (normalized !== text) {
     warnings.push({
       level: "warn",
       ruleId: "legacy-macro-syntax",
-      msg: "Macro uses ^C^C / `;` / newlines — DAT/EM expects literal {RET} tokens. Auto-fix rewrites it.",
+      msg: "Macro isn't in DAT/EM-canonical form (legacy ^C^C / `;` / newlines, or `-LAYER{RET}S{RET}` shortcut). Auto-fix rewrites it.",
       fix: (cmds) => normalizeMacro(cmds),
     });
   }

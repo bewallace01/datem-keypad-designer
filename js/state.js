@@ -60,6 +60,12 @@ export function normalizeMacro(commands) {
   s = s.replace(/(-LAYER;)S(?=;)/gi, "$1SET");
   // Convert separators to literal {RET} tokens.
   s = s.replace(/[;\n]/g, "{RET}");
+  // Upgrade the `{RET}`-form shortcut too — third-party .dkf files often
+  // emit `-LAYER{RET}S{RET}NAME{RET}{RET}` directly (skipping the semicolon
+  // form entirely), so the previous pass wouldn't catch them. AutoCAD
+  // accepts `S` as a shortcut but DAT/EM's keystroke stream is more
+  // reliable with the full word.
+  s = s.replace(/(-LAYER\{RET\})S(?=\{RET\})/gi, "$1SET");
   return s;
 }
 
