@@ -66,12 +66,22 @@ export function normalizeMacro(commands) {
   // accepts `S` as a shortcut but DAT/EM's keystroke stream is more
   // reliable with the full word.
   s = s.replace(/(-LAYER\{RET\})S(?=\{RET\})/gi, "$1SET");
-  // Microstation level-set key-in: `LV=<name>{RET}` is the legacy form
-  // used by older .dkf files (Summit shipped with Microstation before
-  // AutoCAD). Convert to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
+  // Microstation drawing-attribute key-ins are baked into the active
+  // layer on the AutoCAD side, so they're noise in a modern macro:
+  //   CO=<n>{RET}  active color
+  //   WT=<n>{RET}  active line weight
+  //   LC=<n>{RET}  active line code (style)
+  // Strip them — the chained drawing command after `LV=…` still runs.
+  s = s.replace(/\b(?:CO|WT|LC)=[^{}\s]*\{RET\}/gi, "");
+  // Microstation level-set key-in. Two shapes:
+  //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
+  //   LV=<name>{RET}                  bare
+  // Convert both to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
   // equivalent — same semantic, runs through AutoCAD's command line on
-  // current Summit installs.
-  s = s.replace(/\bLV=([^{}\s]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
+  // current Summit installs. Quoted names keep their quotes in the output
+  // so AutoCAD parses the name verbatim (it accepts quoted layer names).
+  s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, '-LAYER{RET}SET{RET}"$1"{RET}{RET}');
+  s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   return s;
 }
 
