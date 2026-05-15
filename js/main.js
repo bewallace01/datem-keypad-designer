@@ -38,6 +38,7 @@ import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySever
 import { LBPLACE_LISP } from "./lbplace.js";
 import { extractPdfText } from "./pdf-import.js";
 import { buildLayerDxf, extractLayerNamesFromProject, sanitizeLayerName } from "./dxt-export.js";
+import { shortenMicrostationLayerName } from "./state.js";
 
 let exportMode = "text";
 
@@ -1641,22 +1642,28 @@ async function generateLayers() {
     status.innerHTML = '<span class="spinner"></span>Extracting layers via Claude…';
     const layers = await extractLayersFromPdf({ pdfText, keypadLayers, projectContext });
 
-    // Defensive: dedupe by sanitized name (case-insensitive) so an AI hiccup
-    // that emits the same layer twice doesn't produce a malformed DXF.
+    // Collapse Microstation hierarchical names from the AI output to the
+    // short trailing abbreviation, then dedupe by sanitized name
+    // (case-insensitive). Keeps the original long name as a "Microstation
+    // level" annotation prepended to the description so the operator can
+    // still trace it back.
     const seen = new Set();
     genLayersResult = [];
     for (const l of layers) {
-      const name = sanitizeLayerName(l.name || "");
+      const rawName = (l.name || "").trim();
+      const shortened = shortenMicrostationLayerName(rawName);
+      const name = sanitizeLayerName(shortened);
       if (!name) continue;
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
+      const longSuffix = shortened !== rawName ? ` · was ${rawName}` : "";
       genLayersResult.push({
         name,
         color: Number.isInteger(l.color) ? l.color : 7,
         linetype: typeof l.linetype === "string" && l.linetype ? l.linetype : "CONTINUOUS",
         lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
-        description: l.description || "",
+        description: (l.description || "") + longSuffix,
         keypadReferenced: keypadLayers.includes(name),
         fromPdf: pdfText.length > 0 && !keypadLayers.includes(name),
       });

@@ -33,6 +33,53 @@ export function colorByID(id) {
   return COLORS.find((c) => c.id === id) || COLORS[COLORS.length - 1];
 }
 
+// Microstation V8 levels are deeply nested with NCS-style segments:
+//   E_Drainage_Structure_Rip_Rap_RIP-LINE   -> E-RIP-RAP
+//   E_DTM_Ditch_Ditch_Bottom_DTB-LINE       -> E-DITCH-BOTTOM
+//   E_DTM_Grade_Break_GB-LINE               -> E-GRADE-BREAK
+//   E_DTM_Natural_Ground_NG                 -> E-NATURAL-GROUND
+//   E_DTM_NG                                -> E-NG
+// Algorithm: keep the status prefix (single uppercase letter — E for
+// Existing, F for Future, P for Proposed) if present. Skip the
+// discipline segment (DTM, Drainage, etc., position 1). Take the last
+// 1-2 meaningful feature words. If the trailing segment looks like an
+// abbreviation/code (e.g. `RIP-LINE`, `DTB-LINE`, `NG`), drop it from
+// the feature words but keep it as a fallback when no other feature
+// words are available. Output is uppercase, joined with hyphens.
+// Already-short names (≤2 segments) pass through unchanged.
+export function shortenMicrostationLayerName(name) {
+  if (!name) return name;
+  const cleaned = name.replace(/^["'\s]+|["'\s]+$/g, "");
+  const parts = cleaned.split("_");
+  if (parts.length < 3) return cleaned;
+
+  const hasStatusPrefix = /^[A-Z]$/.test(parts[0]);
+  const prefix = hasStatusPrefix ? parts[0] : "";
+  // Discipline segment is typically position 1 after the status prefix
+  // (DTM, Drainage, Survey, Structure, etc.). Drop it.
+  const featureStart = hasStatusPrefix ? 2 : 1;
+
+  const last = parts[parts.length - 1];
+  // Trailing code: 1-5 uppercase letters optionally followed by a hyphen
+  // and another uppercase word (RIP-LINE / DTB-LINE / NG / GB-LINE).
+  const lastIsCode = /^[A-Z]{1,5}(-[A-Z]+)?$/.test(last);
+  const featureEnd = lastIsCode ? parts.length - 1 : parts.length;
+
+  // Take the last 2 feature words, capped at the available range.
+  const featureWords = parts.slice(Math.max(featureStart, featureEnd - 2), featureEnd);
+
+  let middle;
+  if (featureWords.length === 0) {
+    // Nothing descriptive left after dropping prefix/discipline/code —
+    // fall back to the trailing code so the name is at least identifiable.
+    middle = last;
+  } else {
+    middle = featureWords.map((p) => p.toUpperCase().replace(/-/g, "-")).join("-");
+  }
+
+  return prefix ? `${prefix}-${middle}` : middle;
+}
+
 // Normalize a macro string to the {RET}-token editor convention. Idempotent.
 //
 // Background: earlier versions stored macros in AutoCAD CUI form (^C^C cancel,
@@ -122,6 +169,15 @@ export function normalizeMacro(commands) {
     const re = new RegExp(`\\b${cmd}\\{RET\\}`, "gi");
     s = s.replace(re, "");
   }
+  // Collapse Microstation hierarchical level names to short AutoCAD-style
+  // abbreviations inside -LAYER{RET}SET{RET}<name>{RET}{RET} macros. Runs
+  // last so earlier passes (LV= conversion, quote-strip) have already
+  // landed names in the canonical form. Idempotent for already-short
+  // names like ROAD_EOP and V-NODE-MHOL.
+  s = s.replace(
+    /(-LAYER\{RET\}SET\{RET\})([^{]+?)(\{RET\}\{RET\})/gi,
+    (_, head, name, tail) => head + shortenMicrostationLayerName(name.trim()) + tail,
+  );
   return s;
 }
 
