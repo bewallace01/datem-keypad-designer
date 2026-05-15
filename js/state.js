@@ -66,6 +66,12 @@ export function normalizeMacro(commands) {
   // accepts `S` as a shortcut but DAT/EM's keystroke stream is more
   // reliable with the full word.
   s = s.replace(/(-LAYER\{RET\})S(?=\{RET\})/gi, "$1SET");
+  // Microstation level-set key-in: `LV=<name>{RET}` is the legacy form
+  // used by older .dkf files (Summit shipped with Microstation before
+  // AutoCAD). Convert to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
+  // equivalent — same semantic, runs through AutoCAD's command line on
+  // current Summit installs.
+  s = s.replace(/\bLV=([^{}\s]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   return s;
 }
 
