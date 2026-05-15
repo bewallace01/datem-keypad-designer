@@ -133,7 +133,15 @@ export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting Auto
   (b) A free-text project narrative that mentions feature codes / layer names in prose.
   (c) A mix of both.
 
-You handle all three. Extract every distinct layer name you can identify with confidence. For each one, also extract:
+You handle all three. Extract every distinct layer name you can identify with confidence.
+
+LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations, NOT Microstation V8 hierarchical paths. If the PDF gives a name like
+  E_Drainage_Structure_Rip_Rap_RIP-LINE
+output only the trailing abbreviation as the layer name:
+  RIP-LINE
+Same for E_DTM_Ditch_Ditch_Bottom_DTB-LINE → DTB-LINE, E_DTM_Natural_Ground_NG → NG, etc. Rule of thumb: take the last underscore-delimited segment when the source has 4+ segments. Names that are already short (BLDG, ROAD_EOP, V-NODE-MHOL) pass through unchanged.
+
+For each layer also extract:
 
   - color: AutoCAD Color Index (ACI) 1-255 if the PDF says so, or maps clearly to a named color (red=1, yellow=2, green=3, cyan=4, blue=5, magenta=6, white=7). Default to 7 if not specified.
   - linetype: name like CONTINUOUS, HIDDEN, DASHED, CENTER, PHANTOM. Default to CONTINUOUS if not specified.

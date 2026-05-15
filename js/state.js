@@ -33,6 +33,24 @@ export function colorByID(id) {
   return COLORS.find((c) => c.id === id) || COLORS[COLORS.length - 1];
 }
 
+// Microstation V8 levels are deeply nested:
+//   E_Drainage_Structure_Rip_Rap_RIP-LINE
+//   E_DTM_Ditch_Ditch_Bottom_DTB-LINE
+// AutoCAD layer names should be short descriptive abbreviations. The
+// last underscore-delimited segment is conventionally the abbreviation
+// (`RIP-LINE`, `DTB-LINE`, `NG`, etc.); collapse to it when the name
+// has 4+ segments. Skip already-short names like `ROAD_EOP`, `BLDG`,
+// `V-NODE-MHOL` — those are already AutoCAD-shaped.
+export function shortenMicrostationLayerName(name) {
+  if (!name) return name;
+  // Trim any stray surrounding whitespace/quotes left over from
+  // earlier conversions.
+  const cleaned = name.replace(/^["'\s]+|["'\s]+$/g, "");
+  const parts = cleaned.split("_");
+  if (parts.length < 4) return cleaned;
+  return parts[parts.length - 1];
+}
+
 // Normalize a macro string to the {RET}-token editor convention. Idempotent.
 //
 // Background: earlier versions stored macros in AutoCAD CUI form (^C^C cancel,
@@ -122,6 +140,15 @@ export function normalizeMacro(commands) {
     const re = new RegExp(`\\b${cmd}\\{RET\\}`, "gi");
     s = s.replace(re, "");
   }
+  // Collapse Microstation hierarchical level names to short AutoCAD-style
+  // abbreviations inside -LAYER{RET}SET{RET}<name>{RET}{RET} macros. Runs
+  // last so earlier passes (LV= conversion, quote-strip) have already
+  // landed names in the canonical form. Idempotent for already-short
+  // names like ROAD_EOP and V-NODE-MHOL.
+  s = s.replace(
+    /(-LAYER\{RET\}SET\{RET\})([^{]+?)(\{RET\}\{RET\})/gi,
+    (_, head, name, tail) => head + shortenMicrostationLayerName(name.trim()) + tail,
+  );
   return s;
 }
 
