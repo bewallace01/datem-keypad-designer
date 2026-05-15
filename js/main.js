@@ -1646,10 +1646,14 @@ async function generateLayers() {
 
     // Collapse Microstation hierarchical names from the AI output to the
     // short trailing abbreviation, then dedupe by sanitized name
-    // (case-insensitive). Keeps the original long name as a "Microstation
-    // level" annotation prepended to the description so the operator can
-    // still trace it back.
+    // (case-insensitive). A layer is tagged as `fromPdf` whenever the AI
+    // returned it (we passed the PDF text to the model) — NOT only when
+    // it's absent from the keypad. That way layers that exist in BOTH
+    // sources surface with the "both" tag in the preview, instead of
+    // silently being classified as keypad-only.
     const seen = new Set();
+    const aiReturnedFromPdf = pdfText.length > 0;
+    let aiReturnedCount = 0;
     genLayersResult = [];
     for (const l of layers) {
       const rawName = (l.name || "").trim();
@@ -1659,6 +1663,7 @@ async function generateLayers() {
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
+      aiReturnedCount++;
       const longSuffix = shortened !== rawName ? ` · was ${rawName}` : "";
       genLayersResult.push({
         name,
@@ -1667,7 +1672,7 @@ async function generateLayers() {
         lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
         description: (l.description || "") + longSuffix,
         keypadReferenced: keypadLayers.includes(name),
-        fromPdf: pdfText.length > 0 && !keypadLayers.includes(name),
+        fromPdf: aiReturnedFromPdf,
       });
     }
     // Also surface any keypad-referenced layer the AI dropped on the floor.
@@ -1694,7 +1699,11 @@ async function generateLayers() {
     document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
     document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
 
-    status.textContent = `✓ ${genLayersResult.length} layer${genLayersResult.length === 1 ? "" : "s"} ready.`;
+    const keypadOnlyCount = genLayersResult.length - aiReturnedCount;
+    const parts = [];
+    parts.push(`${aiReturnedCount} from ${pdfText.length > 0 ? "PDF" : "keypad"}`);
+    if (keypadOnlyCount > 0) parts.push(`${keypadOnlyCount} keypad-only`);
+    status.textContent = `✓ ${genLayersResult.length} layer${genLayersResult.length === 1 ? "" : "s"} ready (${parts.join(", ")}).`;
     status.className = "ai-status success";
   } catch (e) {
     console.error(e);
