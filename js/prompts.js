@@ -127,15 +127,15 @@ Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
 
 Be efficient - keep notes to one short sentence. Aim for 25-45 buttons depending on grid size and context detail.`;
 
-export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting AutoCAD layer definitions from a project specification document. The user uploaded a PDF that may be either:
+export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting AutoCAD layer definitions from a project specification PDF. The PDF may be:
 
   (a) A structured layer-table specification — layer code per row with columns like color, linetype, lineweight, description.
   (b) A free-text project narrative that mentions feature codes / layer names in prose.
   (c) A mix of both.
 
-You handle all three. Extract every distinct layer name you can identify with confidence.
+You handle all three. Extract every distinct layer name you can find in the PDF text. The reconciliation against the user's existing keypad button layers happens on the client side AFTER your response — DO NOT worry about which keypad buttons reference which layers, and do NOT add or drop layers based on a keypad list. Just enumerate what's in the PDF.
 
-LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations (max 3-4 words total). Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), drop trailing TYPE-SUFFIX words (LINE, POINT, AREA), drop a trailing 1-3 char all-caps abbreviation (RIP, GB, DTB, NG) only if doing so still leaves 2+ feature words, then take the last 2 feature words joined by hyphens uppercased. Examples:
+LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations (max 3-4 hyphen-separated segments total). Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), drop trailing TYPE-SUFFIX words (LINE, POINT, AREA), drop a trailing 1-3 char all-caps abbreviation (RIP, GB, DTB, NG) only if doing so still leaves 2+ feature words, then take the last 2 feature words joined by hyphens uppercased. Examples:
 
   E_Drainage_Structure_Rip_Rap_RIP-LINE       -> E-RIP-RAP
   E_DTM_Ditch_Ditch_Bottom_DTB-LINE           -> E-DITCH-BOTTOM
@@ -154,17 +154,10 @@ For each layer also extract:
   - linetype: name like CONTINUOUS, HIDDEN, DASHED, CENTER, PHANTOM. Default to CONTINUOUS if not specified.
   - lineweight: in 1/100mm units (so 0.25mm = 25, 0.50mm = 50). Use -3 (ByLayer) if not specified.
   - description: a short one-line description if the PDF gives one.
-  - source: literal string indicating where you actually FOUND this layer:
-      "pdf"    — only in the PDF (or in the PDF and no keypad layers were provided).
-      "keypad" — only in the keypad-referenced list; the PDF does NOT mention it.
-      "both"   — present in both the PDF text AND the keypad-referenced list.
-    Be honest. Do not tag every entry "both" just because both inputs were provided. Tag "pdf" when you can point to the name in the PDF text but it isn't in the keypad list. Tag "keypad" when the keypad list has it but you don't see it in the PDF.
-
-ALSO included in the input below is a list of layer names already referenced by the user's keypad buttons. These are the "must have" layers — make sure every one of them appears in your output. If the PDF doesn't define a property for one, use the defaults above; if the PDF only mentions some of them and adds more, include those too (union of PDF + keypad).
 
 AVOID:
-- Inventing layer names not in either source.
-- Returning duplicate names (case-insensitive). Deduplicate, preferring the casing used by the keypad button.
+- Inventing layer names not actually in the PDF text.
+- Returning duplicate names (case-insensitive). Deduplicate using the cleanest casing.
 - Returning property values that aren't valid AutoCAD ACI / linetype / lineweight integers.
 - Long descriptions. Keep each one ≤ 60 characters. If the PDF doesn't give a description, use an empty string — don't make one up.
 - Escaping issues. Descriptions must NOT contain raw double-quote characters; use a hyphen or paraphrase instead. The entire response must be valid parseable JSON.
@@ -173,7 +166,7 @@ OUTPUT FORMAT:
 Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
 {
   "layers": [
-    {"name": "V-BLDG", "color": 7, "linetype": "CONTINUOUS", "lineweight": -3, "description": "Building outlines", "source": "both"},
-    {"name": "V-ROAD-EOP", "color": 1, "linetype": "CONTINUOUS", "lineweight": 25, "description": "Edge of pavement", "source": "pdf"}
+    {"name": "V-BLDG", "color": 7, "linetype": "CONTINUOUS", "lineweight": -3, "description": "Building outlines"},
+    {"name": "V-ROAD-EOP", "color": 1, "linetype": "CONTINUOUS", "lineweight": 25, "description": "Edge of pavement"}
   ]
 }`;

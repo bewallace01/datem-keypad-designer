@@ -267,19 +267,16 @@ export async function generateLayout({
 }
 
 // =========================================================================
-// Layer extraction (PDF + keypad button layer names → unified layer list)
+// Layer extraction — PDF text only (keypad reconciliation happens client-
+// side after the call, NOT inside the prompt). Feeding the keypad list to
+// Claude biased it toward tagging every layer "both"; removing it forces
+// the model to actually mine layer names out of the PDF text.
 // =========================================================================
-export async function extractLayersFromPdf({ pdfText, keypadLayers, projectContext }) {
+export async function extractLayersFromPdf({ pdfText, projectContext }) {
   let userContent = "";
   if (projectContext && projectContext.trim()) {
     userContent += `PROJECT CONTEXT:\n${projectContext.trim()}\n\n`;
   }
-  userContent +=
-    `LAYERS ALREADY REFERENCED BY KEYPAD BUTTONS (must all appear in your output):\n` +
-    (keypadLayers && keypadLayers.length
-      ? keypadLayers.map((n) => `  ${n}`).join("\n")
-      : "  (none — the project has no layer-switch buttons yet)") +
-    `\n\n`;
   userContent +=
     `PDF CONTENT (extracted text, may be a table or free narrative):\n` +
     (pdfText ? pdfText.slice(0, 60000) : "(no PDF provided)");
