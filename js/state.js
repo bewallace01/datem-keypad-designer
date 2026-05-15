@@ -93,60 +93,33 @@ export function normalizeMacro(commands) {
   //   LV=<name>{RET}                  bare
   // Convert both to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
   // equivalent — same semantic, runs through AutoCAD's command line on
-  // current Summit installs. Quoted names keep their quotes in the output
-  // so AutoCAD parses the name verbatim (it accepts quoted layer names).
-  // Microstation level-set key-in. Two shapes:
-  //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
-  //   LV=<name>{RET}                  bare
-  // Convert both to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
-  // equivalent — same semantic, runs through AutoCAD's command line on
   // current Summit installs. Quotes around the source name are dropped
   // (the user's working keypad format never has them); if the level had
   // an embedded space the user will rename the layer to a valid AutoCAD
   // identifier afterwards.
   s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
-  // Strip Microstation drawing key-ins that don't exist on the AutoCAD host.
-  // DAT/EM Capture's `place lstring` / `place line string` share the same
-  // command name across hosts, so they're NOT in this list. The user adds
-  // the feature-appropriate AutoCAD/DAT-EM tool (PSQR2D, AUTOARC3D,
-  // -INSERT{RET}BLOCK{RET}, …) after the level-set by hand — wrong default
-  // would silently break a different way.
-  //
-  // `place cell` is in the strip list as a fallback: the
-  // AS=<name>{RET}place cell{RET} pair was already converted to
-  // -INSERT{RET}<name>{RET} above; anything labeled `place cell{RET}` that
-  // reaches here is an orphan with no cell name and would do nothing on
-  // AutoCAD anyway.
-  const MICROSTATION_DRAW_KEY_INS = [
-    "place active shape",
-    "place active line",
-    "place active text",
-    "place active point",
-    "place active cell",
-    "place shape",
-    "place line",
-    "place text",
-    "place note",
-    "place point",
-    "place arc",
-    "place circle",
-    "place curve",
-    "place spline",
-    "place block",
-    "place ellipse",
-    "place fence",
-    "place cell",
-    // DAT/EM-for-Microstation cell-placement modifiers. AutoCAD's
-    // `-INSERT` handles its own scale/rotation prompts; these modes
-    // are dead text on the AutoCAD host.
-    "twoshot angle",
-    "twoshot scale",
-    "twoshot",
-    "oneshot",
-  ];
-  for (const cmd of MICROSTATION_DRAW_KEY_INS) {
-    const re = new RegExp(`\\b${cmd.replace(/[.*+?^${}()|[\\]/g, "\\$&")}\\{RET\\}`, "gi");
+  // Earlier versions wrote quoted layer names through to the AutoCAD form
+  // (`-LAYER{RET}SET{RET}"<name>"{RET}{RET}`). Strip those quotes too so
+  // already-migrated buttons land in the same shape as fresh imports.
+  s = s.replace(/(-LAYER\{RET\}SET\{RET\})"([^"]+)"(\{RET\}\{RET\})/gi, "$1$2$3");
+  // Strip Microstation `place X{RET}` drawing key-ins (place shape /
+  // place line / place smartline / place complex chain / etc.) that
+  // don't exist on the AutoCAD host. DAT/EM Capture's `place lstring`
+  // and `place line string` share the same command name across hosts,
+  // so they're explicitly KEPT. The catch-all pattern means new-to-us
+  // Microstation `place …` variants get cleaned up automatically
+  // without having to enumerate them.
+  const CAPTURE_PLACE_KEEP = new Set(["lstring", "line string"]);
+  s = s.replace(/\bplace ([^{}\n]+?)\{RET\}/gi, (m, words) => {
+    const norm = words.toLowerCase().replace(/\s+/g, " ").trim();
+    return CAPTURE_PLACE_KEEP.has(norm) ? m : "";
+  });
+  // DAT/EM-for-Microstation cell-placement modifiers (twoshot/oneshot).
+  // AutoCAD's `-INSERT` runs its own scale/rotation prompts inline, so
+  // these modes are dead text on the AutoCAD host.
+  for (const cmd of ["twoshot angle", "twoshot scale", "twoshot", "oneshot"]) {
+    const re = new RegExp(`\\b${cmd}\\{RET\\}`, "gi");
     s = s.replace(re, "");
   }
   return s;
