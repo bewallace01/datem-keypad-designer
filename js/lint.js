@@ -8,6 +8,8 @@
 // False positives are annoying because users ignore them, which hides real
 // issues. When in doubt, "info" (advisory) over "warn" (will probably break).
 
+import { cellOwnerMap } from "./state.js";
+
 const SUMMIT_KEYWORDS = new Set([
   "Driver", "ZoomIn", "ZoomOut", "RaiseZ", "LowerZ", "StereoToggle",
   "NextStereoPair", "PreviousStereoPair", "ModelExtents", "AutoLevel",
@@ -77,6 +79,13 @@ export const RULES = {
       "than 1 row eat keypad real estate and create weird spacing between sections. The fix sets height to 1 " +
       "and keeps the width (so a 2x2 becomes 2x1).",
   },
+  "header-too-narrow": {
+    label: "Header only 1 column wide",
+    detail:
+      "Section-header buttons read as a rectangular label bar above the section they mark — a 1x1 header " +
+      "looks like a normal button. The fix grows width to 2 when the cell to the right is free; otherwise " +
+      "open the button and widen it manually.",
+  },
   "empty-labeled-button": {
     label: "Labeled button has no command",
     detail:
@@ -121,6 +130,24 @@ export function lintMacro(commands, opts = {}) {
         fixButton: (btn) => {
           if ((btn.height || 1) <= 1) return false;
           btn.height = 1;
+          return true;
+        },
+      });
+    }
+    if (opts.width !== undefined && opts.width < 2) {
+      warnings.push({
+        level: "warn",
+        ruleId: "header-too-narrow",
+        msg: "Header is only 1 column wide — section headers read better as a rectangular 2-column label bar.",
+        fixButton: (btn, ctx) => {
+          if ((btn.width || 1) >= 2) return false;
+          if (!ctx || !ctx.project) return false;
+          if (ctx.col + 2 > ctx.project.cols) return false;
+          const others = { ...ctx.project.buttons };
+          delete others[ctx.key];
+          const owner = cellOwnerMap({ buttons: others });
+          if (owner[`${ctx.row},${ctx.col + 1}`]) return false;
+          btn.width = 2;
           return true;
         },
       });
@@ -302,11 +329,16 @@ export function lintMacro(commands, opts = {}) {
 export function lintProject(project) {
   const out = {};
   for (const [key, btn] of Object.entries(project.buttons || {})) {
+    const [row, col] = key.split(",").map(Number);
     const w = lintMacro(btn.commands, {
       isHeader: !!btn.header,
       isLabeled: !!(btn.label && btn.label.trim()),
       hasBitmap: !!btn.bitmap,
       height: btn.height || 1,
+      width: btn.width || 1,
+      row,
+      col,
+      project,
     });
     if (w.length) out[key] = w;
   }
@@ -354,15 +386,22 @@ export function countWarningsBySeverity(byKey) {
 // Apply a finding's fix to the project's button. Returns true on change.
 // Two flavors of fix are supported:
 //   - `fix(commands)` returns a new command string (used by macro-level rules)
-//   - `fixButton(btn)` mutates the button in place and returns true on change
-//     (used by structural rules like header-too-tall that touch width/height)
+//   - `fixButton(btn, ctx)` mutates the button in place and returns true on
+//     change (used by structural rules like header-too-tall / header-too-narrow
+//     that touch width/height). `ctx` carries { project, key, row, col } so
+//     rules can do collision-aware fixes against neighboring buttons.
 // Callers should recordChange() before and persist()+renderAll() after.
 export function applyFix(project, finding) {
   if (!finding) return false;
   const btn = project.buttons[finding.key];
   if (!btn) return false;
   if (finding.fixButton) {
-    return finding.fixButton(btn);
+    return finding.fixButton(btn, {
+      project,
+      key: finding.key,
+      row: finding.row,
+      col: finding.col,
+    });
   }
   if (finding.fix) {
     const next = finding.fix(btn.commands || "");
