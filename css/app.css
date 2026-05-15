@@ -399,6 +399,12 @@ main { display: flex; overflow: hidden; position: relative; }
   background: none; border: none; color: var(--accent, #5ba2f7);
   text-decoration: underline; cursor: pointer; padding: 0; font: inherit;
 }
+.field-hint {
+  margin: 6px 0 0; font-size: 12px; color: var(--text-faint); line-height: 1.4;
+}
+.field-hint code {
+  font-size: 11px; background: var(--bg-elev); padding: 1px 5px; border-radius: 3px;
+}
 .dxf-controls {
   display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
   margin: 12px 0 8px;

@@ -167,6 +167,17 @@
           </div>
         </div>
 
+        <div class="field" id="fRepeatRow" style="display:none">
+          <label class="checkbox-row">
+            <input type="checkbox" id="fRepeat">
+            <span>Repeat placement (LBPLACE) — keep clicking to place more blocks until Esc</span>
+          </label>
+          <p class="field-hint">
+            Requires <code>LBPLACE.lsp</code> loaded once in AutoCAD via APPLOAD →
+            <button type="button" id="fRepeatHelpBtn" class="link-btn">show the LISP</button>.
+          </p>
+        </div>
+
         <div class="field">
           <label>Commands</label>
           <textarea id="fCommands" rows="6" placeholder="-LAYER{RET}SET{RET}UTIL_WATER{RET}{RET}_PLINE"></textarea>
@@ -250,6 +261,28 @@
       <button onclick="closeModal('exportModal')">Close</button>
       <button onclick="copyExport()" class="primary">Copy to clipboard</button>
       <button onclick="downloadExport()">Download</button>
+    </footer>
+  </div>
+</div>
+
+<!-- LBPLACE LISP MODAL -->
+<div class="modal-bg" id="lbplaceModal">
+  <div class="modal" style="width:640px">
+    <header>LBPLACE.lsp — load once in AutoCAD</header>
+    <div class="modal-body">
+      <p style="color:var(--text-dim);font-size:12.5px;margin-top:0;line-height:1.5">
+        Save this as <code>LBPLACE.lsp</code>, then in AutoCAD run <code>APPLOAD</code> → browse to the file → click the <strong style="color:var(--text)">Add to Startup Suite</strong> briefcase icon → close. Test by typing <code>LBPLACE</code> at the command line. Civil 3D 2018 may require the folder to be in <em>Options → Files → Trusted Locations</em>.
+      </p>
+      <p style="color:var(--text-faint);font-size:12px;margin:0 0 10px;line-height:1.5">
+        Keypad macro form for buttons that use this:
+        <code style="display:block;margin-top:4px">LBPLACE{RET}&lt;layer&gt;{RET}&lt;block&gt;{RET}&lt;scale&gt;{RET}&lt;rotation&gt;{RET}</code>
+      </p>
+      <textarea class="export-text" id="lbplaceText" readonly style="height:340px"></textarea>
+    </div>
+    <footer>
+      <button onclick="closeModal('lbplaceModal')">Close</button>
+      <button onclick="copyLbplaceLisp()" class="primary">Copy to clipboard</button>
+      <button onclick="downloadLbplaceLisp()">Download .lsp</button>
     </footer>
   </div>
 </div>

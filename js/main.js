@@ -35,6 +35,7 @@ import { makeBitmapName } from "./bmp.js";
 import { COLORS } from "./state.js";
 import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
 import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySeverity, RULES } from "./lint.js";
+import { LBPLACE_LISP } from "./lbplace.js";
 
 let exportMode = "text";
 
@@ -1590,6 +1591,33 @@ async function doImport() {
   });
 })();
 
+// LBPLACE.lsp helpers — surfaced to the editor's "Repeat placement" toggle.
+function openLbplaceModal() {
+  document.getElementById("lbplaceText").value = LBPLACE_LISP;
+  openModal("lbplaceModal");
+}
+
+async function copyLbplaceLisp() {
+  const txt = document.getElementById("lbplaceText").value;
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast("LISP copied to clipboard");
+  } catch {
+    toast("Copy failed; select the text and copy manually");
+  }
+}
+
+function downloadLbplaceLisp() {
+  const txt = document.getElementById("lbplaceText").value;
+  const blob = new Blob([txt], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "LBPLACE.lsp";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Expose for inline onclick handlers
 Object.assign(window, {
   newProject,
@@ -1642,4 +1670,7 @@ Object.assign(window, {
   openLintFinding,
   doUndo,
   doRedo,
+  openLbplaceModal,
+  copyLbplaceLisp,
+  downloadLbplaceLisp,
 });
