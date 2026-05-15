@@ -73,16 +73,17 @@ export function normalizeMacro(commands) {
   //   LC=<n>{RET}  active line code (style)
   // Strip them — the chained drawing command after `LV=…` still runs.
   s = s.replace(/\b(?:CO|WT|LC)=[^{}\s]*\{RET\}/gi, "");
-  // Microstation cell-placement: `AS=<cellname>{RET}place cell{RET}` sets
-  // the active symbol then places it. Convert to the AutoCAD equivalent
-  // `-INSERT{RET}<cellname>{RET}` so the macro stops at the
-  // insertion-point prompt and the operator picks on-screen. Quoted form
-  // first (cell names can contain spaces in V8).
-  s = s.replace(/\bAS="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
-  s = s.replace(/\bAS=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
-  // Orphan AS=<value>{RET} (active-symbol set without a following
+  // Microstation cell-placement: `AS=<cellname>{RET}place cell{RET}` or
+  // `AC=<cellname>{RET}place cell{RET}` sets the active symbol/cell then
+  // places it. Convert both to the AutoCAD `-INSERT{RET}<cellname>{RET}`
+  // equivalent so the macro stops at the insertion-point prompt and the
+  // operator picks on-screen. Quoted form first (cell names can contain
+  // spaces in V8).
+  s = s.replace(/\b(?:AS|AC)="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
+  s = s.replace(/\b(?:AS|AC)=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
+  // Orphan AS=/AC=<value>{RET} (active-symbol/cell set without a following
   // `place cell`) is dead text on the AutoCAD host. Strip.
-  s = s.replace(/\bAS=[^{}\n]*?\{RET\}/gi, "");
+  s = s.replace(/\b(?:AS|AC)=[^{}\n]*?\{RET\}/gi, "");
   // Microstation level-set key-in. Two shapes:
   //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
   //   LV=<name>{RET}                  bare
@@ -132,6 +133,13 @@ export function normalizeMacro(commands) {
     "place ellipse",
     "place fence",
     "place cell",
+    // DAT/EM-for-Microstation cell-placement modifiers. AutoCAD's
+    // `-INSERT` handles its own scale/rotation prompts; these modes
+    // are dead text on the AutoCAD host.
+    "twoshot angle",
+    "twoshot scale",
+    "twoshot",
+    "oneshot",
   ];
   for (const cmd of MICROSTATION_DRAW_KEY_INS) {
     const re = new RegExp(`\\b${cmd.replace(/[.*+?^${}()|[\\]/g, "\\$&")}\\{RET\\}`, "gi");
