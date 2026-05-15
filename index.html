@@ -275,7 +275,7 @@
     </header>
     <div class="modal-body">
       <p style="color:var(--text-dim);font-size:12.5px;margin-top:0;line-height:1.5">
-        Upload a project spec PDF and Claude will extract layer definitions (name, color, linetype, lineweight). The result is unioned with every layer name your keypad buttons reference, then exported as a <strong style="color:var(--text)">.dxf</strong> you can open in AutoCAD and <em>Save As</em> a <strong style="color:var(--text)">.dwt</strong> template.
+        Upload a project spec PDF and Claude will extract layer definitions (name + color). The result is unioned with every layer name your keypad buttons reference, then exported as a <strong style="color:var(--text)">LOADLAYERS.lsp</strong> you load once in AutoCAD via APPLOAD. Run <code>LOADLAYERS</code> at the command line and the layers appear in your current drawing — then <em>File → Save As → DWG Template (*.dwt)</em> to lock them into a project template.
       </p>
 
       <div class="field" style="margin:14px 0 8px">
@@ -305,7 +305,8 @@
     </div>
     <footer>
       <button onclick="closeModal('genLayersModal')">Close</button>
-      <button id="genLayersDownloadBtn" onclick="downloadLayersDxf()" class="primary" disabled>Download .dxf</button>
+      <button id="genLayersDownloadBtn" onclick="downloadLayersLisp()" class="primary" disabled>Download .lsp</button>
+      <button id="genLayersDownloadDxfBtn" onclick="downloadLayersDxf()" disabled>…or .dxf</button>
     </footer>
   </div>
 </div>

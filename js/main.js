@@ -37,7 +37,7 @@ import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
 import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySeverity, RULES } from "./lint.js";
 import { LBPLACE_LISP } from "./lbplace.js";
 import { extractPdfText } from "./pdf-import.js";
-import { buildLayerDxf, extractLayerNamesFromProject, sanitizeLayerName } from "./dxt-export.js";
+import { buildLayerDxf, buildLayerLisp, extractLayerNamesFromProject, sanitizeLayerName } from "./dxt-export.js";
 import { shortenMicrostationLayerName } from "./state.js";
 
 let exportMode = "text";
@@ -1608,6 +1608,7 @@ function openGenLayers() {
   document.getElementById("genLayersResult").style.display = "none";
   document.getElementById("genLayersList").innerHTML = "";
   document.getElementById("genLayersDownloadBtn").disabled = true;
+  document.getElementById("genLayersDownloadDxfBtn").disabled = true;
   genLayersResult = [];
   openModal("genLayersModal");
 }
@@ -1624,6 +1625,7 @@ async function generateLayers() {
   status.className = "ai-status";
   document.getElementById("genLayersResult").style.display = "none";
   document.getElementById("genLayersDownloadBtn").disabled = true;
+  document.getElementById("genLayersDownloadDxfBtn").disabled = true;
 
   try {
     let pdfText = "";
@@ -1688,7 +1690,9 @@ async function generateLayers() {
     renderGenLayersList();
     document.getElementById("genLayersCount").textContent = String(genLayersResult.length);
     document.getElementById("genLayersResult").style.display = "block";
-    document.getElementById("genLayersDownloadBtn").disabled = genLayersResult.length === 0;
+    const hasResults = genLayersResult.length > 0;
+    document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
+    document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
 
     status.textContent = `✓ ${genLayersResult.length} layer${genLayersResult.length === 1 ? "" : "s"} ready.`;
     status.className = "ai-status success";
@@ -1726,17 +1730,31 @@ function aciToHex(aci) {
   return palette[aci] || "#888888";
 }
 
+function projectFilenameStem() {
+  return (curr().name || "keypad").replace(/[^A-Za-z0-9_-]+/g, "_") || "keypad";
+}
+
+function downloadBlob(filename, mime, content) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadLayersLisp() {
+  if (!genLayersResult.length) return;
+  const lisp = buildLayerLisp(genLayersResult, { projectName: curr().name || "" });
+  downloadBlob("LOADLAYERS.lsp", "text/plain", lisp);
+  toast(`Downloaded ${genLayersResult.length} layers as LISP — APPLOAD it in AutoCAD, then type LOADLAYERS`);
+}
+
 function downloadLayersDxf() {
   if (!genLayersResult.length) return;
   const dxf = buildLayerDxf(genLayersResult);
-  const blob = new Blob([dxf], { type: "application/dxf" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const projectName = (curr().name || "keypad").replace(/[^A-Za-z0-9_-]+/g, "_");
-  a.href = url;
-  a.download = `${projectName}_layers.dxf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(`${projectFilenameStem()}_layers.dxf`, "application/dxf", dxf);
   toast(`Downloaded ${genLayersResult.length} layers as DXF — open in AutoCAD, then Save As .dwt`);
 }
 
@@ -1824,5 +1842,6 @@ Object.assign(window, {
   downloadLbplaceLisp,
   openGenLayers,
   generateLayers,
+  downloadLayersLisp,
   downloadLayersDxf,
 });
