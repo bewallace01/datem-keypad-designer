@@ -1642,16 +1642,13 @@ async function generateLayers() {
     const projectContext = includeCtx ? (p.context || "") : "";
 
     status.innerHTML = '<span class="spinner"></span>Extracting layers via Claude…';
-    const layers = await extractLayersFromPdf({ pdfText, keypadLayers, projectContext });
+    const layers = await extractLayersFromPdf({ pdfText, projectContext });
 
-    // Dedupe by sanitized name. Tagging now follows Claude's per-layer
-    // `source` field ("pdf" / "keypad" / "both") instead of inferring
-    // from the input. Cross-check against the keypad list for accuracy:
-    // even if Claude says "pdf", if the name DOES match a keypad button
-    // we know it's actually "both" — Claude sometimes misses that.
+    // Reconcile client-side now that Claude returns ONLY what it found in
+    // the PDF. Every AI-returned layer is `fromPdf`; cross-check against
+    // the keypad list for `keypadReferenced`. The two booleans drive the
+    // tag (PDF / both / keypad).
     const seen = new Set();
-    const aiReturnedFromPdf = pdfText.length > 0;
-    let aiReturnedCount = 0;
     let pdfTaggedCount = 0;
     let bothTaggedCount = 0;
     genLayersResult = [];
@@ -1663,17 +1660,10 @@ async function generateLayers() {
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      aiReturnedCount++;
       const longSuffix = shortened !== rawName ? ` · was ${rawName}` : "";
-      const claudeSource = (l.source || "").toLowerCase();
       const keypadHas = keypadLayers.includes(name);
-      // Trust Claude's claim that a layer is in the PDF. Cross-check the
-      // keypad side ourselves so "both" is only set when the name really
-      // is referenced by a button.
-      const claudeSaysPdf = claudeSource === "pdf" || claudeSource === "both";
-      const fromPdf = aiReturnedFromPdf && claudeSaysPdf;
-      if (fromPdf && keypadHas) bothTaggedCount++;
-      else if (fromPdf) pdfTaggedCount++;
+      if (keypadHas) bothTaggedCount++;
+      else pdfTaggedCount++;
       genLayersResult.push({
         name,
         color: Number.isInteger(l.color) ? l.color : 7,
@@ -1681,9 +1671,10 @@ async function generateLayers() {
         lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
         description: (l.description || "") + longSuffix,
         keypadReferenced: keypadHas,
-        fromPdf,
+        fromPdf: true,
       });
     }
+    const aiReturnedCount = genLayersResult.length;
     // Also surface any keypad-referenced layer the AI dropped on the floor.
     for (const name of keypadLayers) {
       const clean = sanitizeLayerName(name);
