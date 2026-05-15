@@ -28,7 +28,7 @@ import { parseDxfLayers, parseDxfBlocks, buttonFromLayer, buttonFromBlock, group
 import { renderBlockPreview, blockToBmpDataUrl } from "./block-render.js";
 import { parseDwgFile } from "./dwg-import.js";
 import { cellOwnerMap } from "./state.js";
-import { generateLayout, describeLayers } from "./ai.js";
+import { generateLayout, describeLayers, extractLayersFromPdf } from "./ai.js";
 import { icons, populateIcons } from "./icons.js";
 import { initDrawIcon, getResult as getDrawnIconResult, hasInk as drawHasInk } from "./draw.js";
 import { makeBitmapName } from "./bmp.js";
@@ -36,6 +36,8 @@ import { COLORS } from "./state.js";
 import { CONTEXT_TEMPLATES, DEFAULT_TEMPLATE } from "./context-templates.js";
 import { findProjectIssues, applyFix, applyAllFixesForRule, countWarningsBySeverity, RULES } from "./lint.js";
 import { LBPLACE_LISP } from "./lbplace.js";
+import { extractPdfText } from "./pdf-import.js";
+import { buildLayerDxf, extractLayerNamesFromProject, sanitizeLayerName } from "./dxt-export.js";
 
 let exportMode = "text";
 
@@ -1591,6 +1593,146 @@ async function doImport() {
   });
 })();
 
+// =========================================================================
+// GENERATE AUTOCAD LAYERS — PDF + keypad button layers -> .dxf template
+// =========================================================================
+let genLayersResult = []; // populated by generateLayers(), consumed by downloadLayersDxf()
+
+function openGenLayers() {
+  document.getElementById("genLayersPdf").value = "";
+  document.getElementById("genLayersPdfStatus").textContent =
+    "No PDF selected — the AI will still pull layers from your keypad buttons.";
+  document.getElementById("genLayersStatus").textContent = "";
+  document.getElementById("genLayersStatus").className = "ai-status";
+  document.getElementById("genLayersResult").style.display = "none";
+  document.getElementById("genLayersList").innerHTML = "";
+  document.getElementById("genLayersDownloadBtn").disabled = true;
+  genLayersResult = [];
+  openModal("genLayersModal");
+}
+
+async function generateLayers() {
+  const status = document.getElementById("genLayersStatus");
+  const btn = document.getElementById("genLayersGenerateBtn");
+  const includeCtx = document.getElementById("genLayersIncludeContext").checked;
+  const fileInput = document.getElementById("genLayersPdf");
+  const file = fileInput.files && fileInput.files[0];
+
+  btn.disabled = true;
+  status.textContent = "";
+  status.className = "ai-status";
+  document.getElementById("genLayersResult").style.display = "none";
+  document.getElementById("genLayersDownloadBtn").disabled = true;
+
+  try {
+    let pdfText = "";
+    if (file) {
+      status.innerHTML = '<span class="spinner"></span>Reading PDF…';
+      const { text, pageCount } = await extractPdfText(file);
+      pdfText = text;
+      document.getElementById("genLayersPdfStatus").textContent =
+        `${file.name} — ${pageCount} page${pageCount === 1 ? "" : "s"}, ${pdfText.length.toLocaleString()} characters extracted.`;
+    }
+
+    const p = curr();
+    const keypadLayers = extractLayerNamesFromProject(p);
+    const projectContext = includeCtx ? (p.context || "") : "";
+
+    status.innerHTML = '<span class="spinner"></span>Extracting layers via Claude…';
+    const layers = await extractLayersFromPdf({ pdfText, keypadLayers, projectContext });
+
+    // Defensive: dedupe by sanitized name (case-insensitive) so an AI hiccup
+    // that emits the same layer twice doesn't produce a malformed DXF.
+    const seen = new Set();
+    genLayersResult = [];
+    for (const l of layers) {
+      const name = sanitizeLayerName(l.name || "");
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      genLayersResult.push({
+        name,
+        color: Number.isInteger(l.color) ? l.color : 7,
+        linetype: typeof l.linetype === "string" && l.linetype ? l.linetype : "CONTINUOUS",
+        lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
+        description: l.description || "",
+        keypadReferenced: keypadLayers.includes(name),
+        fromPdf: pdfText.length > 0 && !keypadLayers.includes(name),
+      });
+    }
+    // Also surface any keypad-referenced layer the AI dropped on the floor.
+    for (const name of keypadLayers) {
+      const clean = sanitizeLayerName(name);
+      if (!clean || seen.has(clean.toLowerCase())) continue;
+      seen.add(clean.toLowerCase());
+      genLayersResult.push({
+        name: clean,
+        color: 7,
+        linetype: "CONTINUOUS",
+        lineweight: -3,
+        description: "",
+        keypadReferenced: true,
+        fromPdf: false,
+      });
+    }
+    genLayersResult.sort((a, b) => a.name.localeCompare(b.name));
+
+    renderGenLayersList();
+    document.getElementById("genLayersCount").textContent = String(genLayersResult.length);
+    document.getElementById("genLayersResult").style.display = "block";
+    document.getElementById("genLayersDownloadBtn").disabled = genLayersResult.length === 0;
+
+    status.textContent = `✓ ${genLayersResult.length} layer${genLayersResult.length === 1 ? "" : "s"} ready.`;
+    status.className = "ai-status success";
+  } catch (e) {
+    console.error(e);
+    status.textContent = "Failed: " + e.message;
+    status.className = "ai-status error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderGenLayersList() {
+  const el = document.getElementById("genLayersList");
+  el.innerHTML = genLayersResult.map((l) => {
+    const sourceTag =
+      l.keypadReferenced && l.fromPdf
+        ? `<span class="gen-layer-tag gen-layer-tag-both">both</span>`
+        : l.keypadReferenced
+        ? `<span class="gen-layer-tag gen-layer-tag-keypad">keypad</span>`
+        : `<span class="gen-layer-tag gen-layer-tag-pdf">PDF</span>`;
+    const swatch = `<span class="gen-layer-swatch" style="background:${aciToHex(l.color)}" title="ACI ${l.color}"></span>`;
+    const desc = l.description ? `<span class="gen-layer-desc">${escapeHtml(l.description)}</span>` : "";
+    return `<div class="gen-layer-row">${swatch}<strong>${escapeHtml(l.name)}</strong>${sourceTag}${desc}</div>`;
+  }).join("");
+}
+
+// Coarse AutoCAD Color Index -> hex for the preview swatch only. Values 1-7
+// map to the canonical AutoCAD palette; everything else falls back to grey.
+function aciToHex(aci) {
+  const palette = {
+    1: "#ff0000", 2: "#ffff00", 3: "#00ff00", 4: "#00ffff",
+    5: "#0000ff", 6: "#ff00ff", 7: "#dddddd",
+  };
+  return palette[aci] || "#888888";
+}
+
+function downloadLayersDxf() {
+  if (!genLayersResult.length) return;
+  const dxf = buildLayerDxf(genLayersResult);
+  const blob = new Blob([dxf], { type: "application/dxf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const projectName = (curr().name || "keypad").replace(/[^A-Za-z0-9_-]+/g, "_");
+  a.href = url;
+  a.download = `${projectName}_layers.dxf`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`Downloaded ${genLayersResult.length} layers as DXF — open in AutoCAD, then Save As .dwt`);
+}
+
 // LBPLACE.lsp helpers — surfaced to the editor's "Repeat placement" toggle.
 function openLbplaceModal() {
   document.getElementById("lbplaceText").value = LBPLACE_LISP;
@@ -1673,4 +1815,7 @@ Object.assign(window, {
   openLbplaceModal,
   copyLbplaceLisp,
   downloadLbplaceLisp,
+  openGenLayers,
+  generateLayers,
+  downloadLayersDxf,
 });

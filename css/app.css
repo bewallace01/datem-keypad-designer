@@ -405,6 +405,32 @@ main { display: flex; overflow: hidden; position: relative; }
 .field-hint code {
   font-size: 11px; background: var(--bg-elev); padding: 1px 5px; border-radius: 3px;
 }
+.gen-layers-list {
+  max-height: 360px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg);
+}
+.gen-layer-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.gen-layer-row:last-child { border-bottom: none; }
+.gen-layer-swatch {
+  width: 12px; height: 12px; border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.25); flex: 0 0 auto;
+}
+.gen-layer-tag {
+  font-size: 10px; padding: 1px 6px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+}
+.gen-layer-tag-keypad { background: rgba(91,162,247,0.15); color: #5ba2f7; }
+.gen-layer-tag-pdf    { background: rgba(167,139,250,0.18); color: #a78bfa; }
+.gen-layer-tag-both   { background: rgba(95,206,157,0.18); color: #5fce9d; }
+.gen-layer-desc {
+  color: var(--text-faint); font-size: 11.5px; margin-left: auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%;
+}
 .dxf-controls {
   display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
   margin: 12px 0 8px;

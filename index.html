@@ -65,6 +65,7 @@
       <button onclick="openDxfImport()" title="Generate buttons from layers in a CAD .dxf / .dwg / .dwt file"><span class="btn-icon" data-icon="upload"></span>Import CAD</button>
       <button onclick="openAutofill()" title="Auto-generate a complete keypad layout from your project context" class="primary"><span class="btn-icon" data-icon="sparkles"></span>Auto-fill</button>
       <button onclick="openContext()" title="Edit project feature codes and conventions"><span class="btn-icon" data-icon="fileText"></span>Context</button>
+      <button onclick="openGenLayers()" title="Upload a project-spec PDF and generate an AutoCAD .dxf with every layer your keypad needs (open in AutoCAD, Save As .dwt)."><span class="btn-icon" data-icon="layers"></span>Gen Layers</button>
       <button onclick="openLint()" id="lintBtn" title="Find common button-command bugs across the whole keypad (legacy ^C^C / ; syntax, unclosed -LAYER, dialog INSERT, non-transparent OSNAP, etc.) and apply one-click fixes.">Lint</button>
       <button onclick="clearAll()" class="icon danger" title="Clear all buttons in this project (cannot be undone via a single click — use Cmd/Ctrl+Z if you change your mind)"><span data-icon="trash"></span></button>
     </div>
@@ -261,6 +262,50 @@
       <button onclick="closeModal('exportModal')">Close</button>
       <button onclick="copyExport()" class="primary">Copy to clipboard</button>
       <button onclick="downloadExport()">Download</button>
+    </footer>
+  </div>
+</div>
+
+<!-- GENERATE LAYERS MODAL -->
+<div class="modal-bg" id="genLayersModal" data-keep-on-bg-click="true">
+  <div class="modal" style="width:640px">
+    <header>
+      <span class="modal-header-icon" data-icon="sparkles" data-icon-size="18"></span>
+      Generate AutoCAD Layers
+    </header>
+    <div class="modal-body">
+      <p style="color:var(--text-dim);font-size:12.5px;margin-top:0;line-height:1.5">
+        Upload a project spec PDF and Claude will extract layer definitions (name, color, linetype, lineweight). The result is unioned with every layer name your keypad buttons reference, then exported as a <strong style="color:var(--text)">.dxf</strong> you can open in AutoCAD and <em>Save As</em> a <strong style="color:var(--text)">.dwt</strong> template.
+      </p>
+
+      <div class="field" style="margin:14px 0 8px">
+        <label>Project spec PDF <span style="color:var(--text-faint);font-weight:400">— optional</span></label>
+        <input type="file" id="genLayersPdf" accept=".pdf,application/pdf">
+        <p class="field-hint" id="genLayersPdfStatus">No PDF selected — the AI will still pull layers from your keypad buttons.</p>
+      </div>
+
+      <div class="field">
+        <label class="checkbox-row">
+          <input type="checkbox" id="genLayersIncludeContext" checked>
+          <span>Include the project's <em>Context</em> textarea as additional input</span>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:8px;margin:14px 0 12px">
+        <button type="button" id="genLayersGenerateBtn" class="primary" onclick="generateLayers()">Generate</button>
+        <span id="genLayersStatus" class="ai-status"></span>
+      </div>
+
+      <div id="genLayersResult" style="display:none">
+        <p style="color:var(--text-dim);font-size:12.5px;margin:0 0 8px;line-height:1.5">
+          <strong style="color:var(--text)" id="genLayersCount">0</strong> layers extracted. Review the list, then download.
+        </p>
+        <div id="genLayersList" class="gen-layers-list"></div>
+      </div>
+    </div>
+    <footer>
+      <button onclick="closeModal('genLayersModal')">Close</button>
+      <button id="genLayersDownloadBtn" onclick="downloadLayersDxf()" class="primary" disabled>Download .dxf</button>
     </footer>
   </div>
 </div>
