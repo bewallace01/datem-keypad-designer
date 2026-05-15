@@ -135,11 +135,14 @@ export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting Auto
 
 You handle all three. Extract every distinct layer name you can identify with confidence.
 
-LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations, NOT Microstation V8 hierarchical paths. If the PDF gives a name like
-  E_Drainage_Structure_Rip_Rap_RIP-LINE
-output only the trailing abbreviation as the layer name:
-  RIP-LINE
-Same for E_DTM_Ditch_Ditch_Bottom_DTB-LINE → DTB-LINE, E_DTM_Natural_Ground_NG → NG, etc. Rule of thumb: take the last underscore-delimited segment when the source has 4+ segments. Names that are already short (BLDG, ROAD_EOP, V-NODE-MHOL) pass through unchanged.
+LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations, NOT Microstation V8 hierarchical paths. Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), then attach the last 1-2 feature words joined by hyphens and uppercased. Drop the trailing code segment (RIP-LINE / DTB-LINE / NG / GB-LINE) — that's the abbreviation, not the feature name. Examples:
+
+  E_Drainage_Structure_Rip_Rap_RIP-LINE  -> E-RIP-RAP
+  E_DTM_Ditch_Ditch_Bottom_DTB-LINE      -> E-DITCH-BOTTOM
+  E_DTM_Grade_Break_GB-LINE              -> E-GRADE-BREAK
+  E_DTM_Natural_Ground_NG                -> E-NATURAL-GROUND
+
+Names that are already short (BLDG, ROAD_EOP, V-NODE-MHOL) pass through unchanged.
 
 For each layer also extract:
 
