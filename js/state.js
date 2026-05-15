@@ -73,6 +73,16 @@ export function normalizeMacro(commands) {
   //   LC=<n>{RET}  active line code (style)
   // Strip them — the chained drawing command after `LV=…` still runs.
   s = s.replace(/\b(?:CO|WT|LC)=[^{}\s]*\{RET\}/gi, "");
+  // Microstation cell-placement: `AS=<cellname>{RET}place cell{RET}` sets
+  // the active symbol then places it. Convert to the AutoCAD equivalent
+  // `-INSERT{RET}<cellname>{RET}` so the macro stops at the
+  // insertion-point prompt and the operator picks on-screen. Quoted form
+  // first (cell names can contain spaces in V8).
+  s = s.replace(/\bAS="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
+  s = s.replace(/\bAS=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}");
+  // Orphan AS=<value>{RET} (active-symbol set without a following
+  // `place cell`) is dead text on the AutoCAD host. Strip.
+  s = s.replace(/\bAS=[^{}\n]*?\{RET\}/gi, "");
   // Microstation level-set key-in. Two shapes:
   //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
   //   LV=<name>{RET}                  bare
@@ -92,16 +102,23 @@ export function normalizeMacro(commands) {
   s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   // Strip Microstation drawing key-ins that don't exist on the AutoCAD host.
-  // DAT/EM Capture's `place cell` / `place lstring` (a.k.a `place line string`)
-  // share the same command name across hosts, so they're explicitly NOT in
-  // this list. The user adds the feature-appropriate AutoCAD/DAT-EM tool
-  // (PSQR2D, AUTOARC3D, -INSERT{RET}BLOCK{RET}, …) after the level-set by
-  // hand — wrong default would silently break a different way.
+  // DAT/EM Capture's `place lstring` / `place line string` share the same
+  // command name across hosts, so they're NOT in this list. The user adds
+  // the feature-appropriate AutoCAD/DAT-EM tool (PSQR2D, AUTOARC3D,
+  // -INSERT{RET}BLOCK{RET}, …) after the level-set by hand — wrong default
+  // would silently break a different way.
+  //
+  // `place cell` is in the strip list as a fallback: the
+  // AS=<name>{RET}place cell{RET} pair was already converted to
+  // -INSERT{RET}<name>{RET} above; anything labeled `place cell{RET}` that
+  // reaches here is an orphan with no cell name and would do nothing on
+  // AutoCAD anyway.
   const MICROSTATION_DRAW_KEY_INS = [
     "place active shape",
     "place active line",
     "place active text",
     "place active point",
+    "place active cell",
     "place shape",
     "place line",
     "place text",
@@ -114,6 +131,7 @@ export function normalizeMacro(commands) {
     "place block",
     "place ellipse",
     "place fence",
+    "place cell",
   ];
   for (const cmd of MICROSTATION_DRAW_KEY_INS) {
     const re = new RegExp(`\\b${cmd.replace(/[.*+?^${}()|[\\]/g, "\\$&")}\\{RET\\}`, "gi");
