@@ -252,13 +252,28 @@ export async function generateCommand() {
 export function attachExampleClicks() {
   // Live-relint the editor on changes to the macro or header flag.
   document.getElementById("fCommands").addEventListener("input", renderLint);
-  // When the user marks a button as a section header, snap its height to 1
-  // — section headers read best as a single-row label bar above the section
-  // they mark. The user can still increase height afterwards if they want.
+  // When the user marks a button as a section header, snap to a 2x1
+  // rectangle — section headers read best as a thin, wide label bar above the
+  // section they mark. Width only grows when the cell to the right is free;
+  // height always shrinks to 1 (always safe). The user can override either
+  // afterwards.
   document.getElementById("fHeader").addEventListener("change", (e) => {
     if (e.target.checked) {
       const h = document.getElementById("fHeight");
       if (parseInt(h.value, 10) > 1) h.value = 1;
+      const wField = document.getElementById("fWidth");
+      if (parseInt(wField.value, 10) === 1 && editing) {
+        const p = curr();
+        const key = `${editing.row},${editing.col}`;
+        if (editing.col + 2 <= p.cols) {
+          const others = { ...p.buttons };
+          delete others[key];
+          const owner = cellOwnerMap({ buttons: others });
+          if (!owner[`${editing.row},${editing.col + 1}`]) {
+            wField.value = 2;
+          }
+        }
+      }
     }
     renderLint();
   });

@@ -518,6 +518,7 @@ async function applyAllSafeLintFixes() {
     "osnap-not-transparent",
     "missing-cancel-prefix",
     "header-too-tall",
+    "header-too-narrow",
   ];
   for (const r of order) total += applyAllFixesForRule(p, r);
   if (!total) { toast("Nothing to fix automatically."); return; }
