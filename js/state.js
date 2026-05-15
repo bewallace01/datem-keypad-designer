@@ -33,50 +33,77 @@ export function colorByID(id) {
   return COLORS.find((c) => c.id === id) || COLORS[COLORS.length - 1];
 }
 
-// Microstation V8 levels are deeply nested with NCS-style segments:
-//   E_Drainage_Structure_Rip_Rap_RIP-LINE   -> E-RIP-RAP
-//   E_DTM_Ditch_Ditch_Bottom_DTB-LINE       -> E-DITCH-BOTTOM
-//   E_DTM_Grade_Break_GB-LINE               -> E-GRADE-BREAK
-//   E_DTM_Natural_Ground_NG                 -> E-NATURAL-GROUND
-//   E_DTM_NG                                -> E-NG
-// Algorithm: keep the status prefix (single uppercase letter — E for
-// Existing, F for Future, P for Proposed) if present. Skip the
-// discipline segment (DTM, Drainage, etc., position 1). Take the last
-// 1-2 meaningful feature words. If the trailing segment looks like an
-// abbreviation/code (e.g. `RIP-LINE`, `DTB-LINE`, `NG`), drop it from
-// the feature words but keep it as a fallback when no other feature
-// words are available. Output is uppercase, joined with hyphens.
-// Already-short names (≤2 segments) pass through unchanged.
+// Microstation V8 levels are deeply nested. AutoCAD layers are short
+// descriptive abbreviations — at most ~3-4 words total. Algorithm:
+//
+//   1. Pure-hyphen names without underscores (V-NODE-MHOL, ROAD-CL) are
+//      already AutoCAD-shaped — pass through.
+//   2. Normalize `_` to `-` so both NCS-style `E_Drainage_…` and mixed
+//      `E-PAINT_STRIPE-…` collapse the same way. Split on hyphen.
+//   3. Keep the leading status prefix (single uppercase letter — E for
+//      Existing, F for Future, P for Proposed).
+//   4. Skip the discipline segment at position 1 (DTM, Drainage, Survey).
+//   5. Drop trailing TYPE-SUFFIX words (LINE, POINT, AREA, …) — they're
+//      noise on the AutoCAD side.
+//   6. If a 1-3 char all-caps trailing segment remains AND there are
+//      still 2+ feature words available, drop it too (RIP, GB, DTB, NG).
+//      Skips this when the result would be empty (E-PARKING-LOT, ROAD-EOP).
+//   7. Take the last 2 remaining feature words. Join with hyphens,
+//      uppercase. Prepend the status prefix.
+//
+// Examples:
+//   E_Drainage_Structure_Rip_Rap_RIP-LINE       -> E-RIP-RAP
+//   E_DTM_Ditch_Ditch_Bottom_DTB-LINE           -> E-DITCH-BOTTOM
+//   E_DTM_Grade_Break_GB-LINE                   -> E-GRADE-BREAK
+//   E_DTM_Natural_Ground_NG                     -> E-NATURAL-GROUND
+//   E_DTM_NG                                    -> E-NG
+//   E-PAINT_STRIPE_DASHED_WHITE                 -> E-DASHED-WHITE
+//   E-PAVEMENT-CENTER_OF_ROAD_CROWN             -> E-ROAD-CROWN
+//   E-PARKING_LOT                               -> E-PARKING-LOT
+//   BLDG / ROAD_EOP / V-NODE-MHOL               -> unchanged
+const TYPE_SUFFIX_WORDS = new Set([
+  "LINE", "POINT", "AREA", "POLY", "POLYLINE", "TEXT", "BLOCK", "ANNO",
+]);
+
 export function shortenMicrostationLayerName(name) {
   if (!name) return name;
   const cleaned = name.replace(/^["'\s]+|["'\s]+$/g, "");
-  const parts = cleaned.split("_");
-  if (parts.length < 3) return cleaned;
+  if (!cleaned.includes("_")) return cleaned;
 
-  const hasStatusPrefix = /^[A-Z]$/.test(parts[0]);
-  const prefix = hasStatusPrefix ? parts[0] : "";
-  // Discipline segment is typically position 1 after the status prefix
-  // (DTM, Drainage, Survey, Structure, etc.). Drop it.
-  const featureStart = hasStatusPrefix ? 2 : 1;
+  const allParts = cleaned.replace(/_/g, "-").split("-").filter(Boolean);
+  if (allParts.length < 3) return cleaned;
 
-  const last = parts[parts.length - 1];
-  // Trailing code: 1-5 uppercase letters optionally followed by a hyphen
-  // and another uppercase word (RIP-LINE / DTB-LINE / NG / GB-LINE).
-  const lastIsCode = /^[A-Z]{1,5}(-[A-Z]+)?$/.test(last);
-  const featureEnd = lastIsCode ? parts.length - 1 : parts.length;
+  const hasStatusPrefix = /^[A-Z]$/.test(allParts[0]);
+  const prefix = hasStatusPrefix ? allParts[0] : "";
+  // Skip prefix; ALSO skip the discipline segment (position 1) only when
+  // the source is clearly hierarchical Microstation (5+ segments).
+  // Without that gate, short names like E-PARKING-LOT would have PARKING
+  // skipped as "discipline" and the output collapses to E-LOT.
+  const featureStart = (hasStatusPrefix ? 1 : 0) + (allParts.length >= 5 ? 1 : 0);
 
-  // Take the last 2 feature words, capped at the available range.
-  const featureWords = parts.slice(Math.max(featureStart, featureEnd - 2), featureEnd);
-
-  let middle;
-  if (featureWords.length === 0) {
-    // Nothing descriptive left after dropping prefix/discipline/code —
-    // fall back to the trailing code so the name is at least identifiable.
-    middle = last;
-  } else {
-    middle = featureWords.map((p) => p.toUpperCase().replace(/-/g, "-")).join("-");
+  const parts = [...allParts];
+  let droppedAbbrev = "";
+  while (parts.length > featureStart && TYPE_SUFFIX_WORDS.has(parts[parts.length - 1])) {
+    droppedAbbrev = parts.pop();
+  }
+  // Only strip a trailing 1-3 char all-caps abbreviation when the source
+  // was clearly hierarchical (6+ segments). Keeps short, AutoCAD-shaped
+  // names intact: E-PARKING-LOT keeps LOT, ROAD_EOP keeps EOP.
+  if (allParts.length >= 6 && parts.length > featureStart + 1) {
+    const tail = parts[parts.length - 1];
+    if (/^[A-Z]{1,3}$/.test(tail)) {
+      droppedAbbrev = tail;
+      parts.pop();
+    }
   }
 
+  const featureWords = parts.slice(Math.max(featureStart, parts.length - 2));
+  let middle;
+  if (featureWords.length === 0) {
+    middle = droppedAbbrev || allParts[allParts.length - 1];
+  } else {
+    middle = featureWords.map((p) => p.toUpperCase()).join("-");
+  }
   return prefix ? `${prefix}-${middle}` : middle;
 }
 

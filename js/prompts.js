@@ -135,14 +135,18 @@ export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting Auto
 
 You handle all three. Extract every distinct layer name you can identify with confidence.
 
-LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations, NOT Microstation V8 hierarchical paths. Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), then attach the last 1-2 feature words joined by hyphens and uppercased. Drop the trailing code segment (RIP-LINE / DTB-LINE / NG / GB-LINE) — that's the abbreviation, not the feature name. Examples:
+LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations (max 3-4 words total). Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), drop trailing TYPE-SUFFIX words (LINE, POINT, AREA), drop a trailing 1-3 char all-caps abbreviation (RIP, GB, DTB, NG) only if doing so still leaves 2+ feature words, then take the last 2 feature words joined by hyphens uppercased. Examples:
 
-  E_Drainage_Structure_Rip_Rap_RIP-LINE  -> E-RIP-RAP
-  E_DTM_Ditch_Ditch_Bottom_DTB-LINE      -> E-DITCH-BOTTOM
-  E_DTM_Grade_Break_GB-LINE              -> E-GRADE-BREAK
-  E_DTM_Natural_Ground_NG                -> E-NATURAL-GROUND
+  E_Drainage_Structure_Rip_Rap_RIP-LINE       -> E-RIP-RAP
+  E_DTM_Ditch_Ditch_Bottom_DTB-LINE           -> E-DITCH-BOTTOM
+  E_DTM_Grade_Break_GB-LINE                   -> E-GRADE-BREAK
+  E_DTM_Natural_Ground_NG                     -> E-NATURAL-GROUND
+  E_DTM_NG                                    -> E-NG
+  E-PAINT_STRIPE_DASHED_WHITE                 -> E-DASHED-WHITE
+  E-PAVEMENT-CENTER_OF_ROAD_CROWN             -> E-ROAD-CROWN
+  E-PARKING_LOT                               -> E-PARKING-LOT
 
-Names that are already short (BLDG, ROAD_EOP, V-NODE-MHOL) pass through unchanged.
+Names that are already short (BLDG, ROAD_EOP, V-NODE-MHOL) pass through unchanged. Never produce a layer name longer than 4 hyphen-separated segments.
 
 For each layer also extract:
 

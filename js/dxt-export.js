@@ -1,15 +1,19 @@
 // js/dxt-export.js
-// Build a minimal AutoCAD DXF containing a LAYER table.
+// Two emit modes for the "Gen Layers" workflow:
 //
-// AutoCAD opens the resulting `.dxf` like any drawing; the user then
-// "Save As" → choose .dwt to land a clean drawing template that already
-// has every layer the keypad / PDF references. We can't write .dwt
-// (binary) directly from the browser without a heavy library, but DXF is
-// text-based and well documented — AutoCAD reads it identically.
+//   1. buildLayerLisp(layers) — preferred. Produces a LOADLAYERS.lsp that
+//      runs `-LAYER N` per entry in any drawing. The user loads it via
+//      APPLOAD (same flow as LBPLACE), then File → Save As → DWG Template
+//      to lock the layer table into a .dwt. Always works — no DXF spec
+//      bookkeeping required.
 //
-// DXF group-code reference for LAYER entries:
-//   0=entity type, 2=name, 70=flags, 62=color (ACI), 6=linetype name,
-//   370=lineweight (1/100mm, -3 = ByLayer default), 290=plotting flag.
+//   2. buildLayerDxf(layers) — fallback. Minimal AC1009 (R12) DXF with
+//      just LAYER and LTYPE tables. R12 is the simplest format AutoCAD
+//      still reads; modern releases (AC1014+) add handles, subclass
+//      markers, BLOCK_RECORD, OBJECTS dictionary requirements that are
+//      a pain to emit correctly. Civil 3D 2022 reads R12 fine but some
+//      installs still reject minimal DXFs we hand-build, hence the LISP
+//      escape hatch.
 
 // Walk a project's buttons, pull every layer name referenced in
 // `-LAYER{RET}SET{RET}<name>{RET}{RET}` macros. Quoted names are
@@ -118,4 +122,60 @@ function buildEmptyEntities() {
 export function buildLayerDxf(layers) {
   const parts = [buildHeader(), buildTables(layers), buildEmptyEntities(), dxfPair(0, "EOF")];
   return parts.join("\n") + "\n";
+}
+
+// Build an AutoLISP routine that creates every layer via -LAYER N in the
+// current drawing. AutoCAD/Civil 3D applies it identically on any version
+// (no DXF spec quirks). Workflow:
+//   1. Save the output as LOADLAYERS.lsp
+//   2. In AutoCAD: APPLOAD → pick it → Load
+//   3. Type LOADLAYERS at the command line → layers are created
+//   4. File → Save As → DWG Template (*.dwt) → done
+//
+// Each layer entry uses the form
+//   (command "-LAYER" "N" <name> "C" <color> <name> "")
+// Wrapped in vl-catch-all-apply so a single bad layer doesn't abort the
+// whole run (the *error* handler reports counts at the end).
+export function buildLayerLisp(layers, { projectName = "" } = {}) {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const lines = [
+    `;; LOADLAYERS.lsp — auto-generated layer loader`,
+    `;; Project: ${projectName || "(unnamed)"}`,
+    `;; Generated: ${stamp}`,
+    `;; ${layers.length} layer${layers.length === 1 ? "" : "s"}`,
+    `;;`,
+    `;; Usage:`,
+    `;;   1. In AutoCAD/Civil 3D, run APPLOAD → load this file.`,
+    `;;   2. At the command line, type LOADLAYERS → Enter.`,
+    `;;   3. File → Save As → DWG Template (*.dwt) to lock the layer table`,
+    `;;      into a project template.`,
+    ``,
+    `(defun c:LOADLAYERS ( / made failed *error*)`,
+    `  (defun *error* (msg) (princ (strcat "\\nError: " msg)) (princ))`,
+    `  (setq made 0 failed 0)`,
+    `  (princ "\\nCreating layers...")`,
+  ];
+  for (const layer of layers) {
+    const name = sanitizeLayerName(layer.name);
+    if (!name) continue;
+    const color = Number.isInteger(layer.color) ? layer.color : 7;
+    // Escape any literal double-quote in the layer name before emitting
+    // it as a LISP string. AutoCAD layer names can't actually contain a
+    // double quote (sanitizeLayerName strips them) but defense in depth.
+    const safeName = name.replace(/"/g, '\\"');
+    lines.push(
+      `  (if (vl-catch-all-error-p (vl-catch-all-apply 'command (list "-LAYER" "N" "${safeName}" "C" "${color}" "${safeName}" "")))`,
+      `      (setq failed (1+ failed)) (setq made (1+ made)))`,
+    );
+  }
+  lines.push(
+    `  (princ (strcat "\\n" (itoa made) " layer(s) created"`,
+    `                  (if (> failed 0) (strcat ", " (itoa failed) " failed") "")`,
+    `                  ". Save As DWG Template to lock the layer table."))`,
+    `  (princ))`,
+    ``,
+    `(princ "\\nLOADLAYERS loaded. Type LOADLAYERS to run.")`,
+    `(princ)`,
+  );
+  return lines.join("\n") + "\n";
 }
