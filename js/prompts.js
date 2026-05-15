@@ -133,7 +133,18 @@ export const LAYER_EXTRACTION_PROMPT = `You are a CAD specialist extracting Auto
   (b) A free-text project narrative that mentions feature codes / layer names in prose.
   (c) A mix of both.
 
-You handle all three. Extract every distinct layer name you can find in the PDF text. The reconciliation against the user's existing keypad button layers happens on the client side AFTER your response — DO NOT worry about which keypad buttons reference which layers, and do NOT add or drop layers based on a keypad list. Just enumerate what's in the PDF.
+You handle all three. **Be exhaustive.** Extract EVERY distinct layer name you can find in the PDF text — don't filter for confidence, don't deduplicate near-misses, don't skip rows of a table because they look like noise. Include any token that plausibly looks like a CAD layer name. Common shapes to recognize:
+
+  - NCS-style hierarchical: <status>_<discipline>_<category>_..._<code> with underscores (e.g. E_DTM_Ditch_Bottom_DTB-LINE).
+  - Short codes with hyphens: V-NODE-MHOL, ROAD-CL, E-RIP-RAP.
+  - All-caps tokens with underscores: ROAD_EOP, HYDRO_EDGE, V-ROAD-PAVE.
+  - Status-prefixed: anything starting with E_, F_, P_, X_, S_ followed by a hierarchical name.
+  - Discipline-prefixed: V-, C-, T-, U- followed by feature words.
+  - Plain feature codes: BLDG, MHOL, POLE, EOP, CL.
+
+If the PDF has 100+ layers, return 100+ entries. Err on the side of over-including — the user reviews the list before download.
+
+The reconciliation against the user's existing keypad button layers happens on the client side AFTER your response — DO NOT worry about which keypad buttons reference which layers, and do NOT add or drop layers based on a keypad list. Just enumerate what's in the PDF.
 
 LAYER NAMES MUST BE SHORT AutoCAD-style abbreviations (max 3-4 hyphen-separated segments total). Rule: keep the status prefix (E / F / P) if present, drop the discipline segment (DTM / Drainage / Structure / Survey), drop trailing TYPE-SUFFIX words (LINE, POINT, AREA), drop a trailing 1-3 char all-caps abbreviation (RIP, GB, DTB, NG) only if doing so still leaves 2+ feature words, then take the last 2 feature words joined by hyphens uppercased. Examples:
 

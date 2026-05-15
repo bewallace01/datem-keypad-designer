@@ -279,7 +279,10 @@ export async function extractLayersFromPdf({ pdfText, projectContext }) {
   }
   userContent +=
     `PDF CONTENT (extracted text, may be a table or free narrative):\n` +
-    (pdfText ? pdfText.slice(0, 60000) : "(no PDF provided)");
+    // 180k characters ~ 45k tokens. Sonnet handles 200k+ tokens of input
+    // easily; this leaves headroom for the prompt + the 16k output
+    // budget. Generous enough to cover 100+ page project spec PDFs.
+    (pdfText ? pdfText.slice(0, 180000) : "(no PDF provided)");
 
   // 16k tokens — large project spec PDFs can produce 100+ layers, each
   // emitting a ~50-byte JSON object. The parseJson() recovery pass still

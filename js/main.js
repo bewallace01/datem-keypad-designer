@@ -1634,7 +1634,7 @@ async function generateLayers() {
       const { text, pageCount } = await extractPdfText(file);
       pdfText = text;
       document.getElementById("genLayersPdfStatus").textContent =
-        `${file.name} — ${pageCount} page${pageCount === 1 ? "" : "s"}, ${pdfText.length.toLocaleString()} characters extracted.`;
+        `${file.name} — ${pageCount} page${pageCount === 1 ? "" : "s"}, ${pdfText.length.toLocaleString()} characters extracted${pdfText.length > 180000 ? " (only first 180k passed to AI)" : ""}.`;
     }
 
     const p = curr();
