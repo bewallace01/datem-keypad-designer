@@ -80,7 +80,16 @@ export function normalizeMacro(commands) {
   // equivalent — same semantic, runs through AutoCAD's command line on
   // current Summit installs. Quoted names keep their quotes in the output
   // so AutoCAD parses the name verbatim (it accepts quoted layer names).
-  s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, '-LAYER{RET}SET{RET}"$1"{RET}{RET}');
+  // Microstation level-set key-in. Two shapes:
+  //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
+  //   LV=<name>{RET}                  bare
+  // Convert both to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
+  // equivalent — same semantic, runs through AutoCAD's command line on
+  // current Summit installs. Quotes around the source name are dropped
+  // (the user's working keypad format never has them); if the level had
+  // an embedded space the user will rename the layer to a valid AutoCAD
+  // identifier afterwards.
+  s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   // Strip Microstation drawing key-ins that don't exist on the AutoCAD host.
   // DAT/EM Capture's `place cell` / `place lstring` (a.k.a `place line string`)
