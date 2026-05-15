@@ -154,6 +154,11 @@ For each layer also extract:
   - linetype: name like CONTINUOUS, HIDDEN, DASHED, CENTER, PHANTOM. Default to CONTINUOUS if not specified.
   - lineweight: in 1/100mm units (so 0.25mm = 25, 0.50mm = 50). Use -3 (ByLayer) if not specified.
   - description: a short one-line description if the PDF gives one.
+  - source: literal string indicating where you actually FOUND this layer:
+      "pdf"    — only in the PDF (or in the PDF and no keypad layers were provided).
+      "keypad" — only in the keypad-referenced list; the PDF does NOT mention it.
+      "both"   — present in both the PDF text AND the keypad-referenced list.
+    Be honest. Do not tag every entry "both" just because both inputs were provided. Tag "pdf" when you can point to the name in the PDF text but it isn't in the keypad list. Tag "keypad" when the keypad list has it but you don't see it in the PDF.
 
 ALSO included in the input below is a list of layer names already referenced by the user's keypad buttons. These are the "must have" layers — make sure every one of them appears in your output. If the PDF doesn't define a property for one, use the defaults above; if the PDF only mentions some of them and adds more, include those too (union of PDF + keypad).
 
@@ -168,7 +173,7 @@ OUTPUT FORMAT:
 Respond with ONLY a JSON object, no markdown fences, no commentary. Schema:
 {
   "layers": [
-    {"name": "V-BLDG", "color": 7, "linetype": "CONTINUOUS", "lineweight": -3, "description": "Building outlines"},
-    {"name": "V-ROAD-EOP", "color": 1, "linetype": "CONTINUOUS", "lineweight": 25, "description": "Edge of pavement"}
+    {"name": "V-BLDG", "color": 7, "linetype": "CONTINUOUS", "lineweight": -3, "description": "Building outlines", "source": "both"},
+    {"name": "V-ROAD-EOP", "color": 1, "linetype": "CONTINUOUS", "lineweight": 25, "description": "Edge of pavement", "source": "pdf"}
   ]
 }`;
