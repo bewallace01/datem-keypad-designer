@@ -12,9 +12,9 @@ WORKFLOW CONTEXT (aerial photogrammetry):
 - Operators rapidly switch layers, snap modes, and Z-handling modes mid-compilation. Buttons must NEVER pop dialogs that interrupt the active drawing command.
 
 MACRO FORMAT (CRITICAL — this matches what DAT/EM actually executes):
-- Use the literal token {RET} (curly braces, uppercase) to send an Enter keystroke between command-line inputs. Do NOT use `;` or `^C^C`.
-- Do NOT prefix macros with ^C^C or {ESC}. DAT/EM's keystroke injection does not honor `^C^C` as cancel — it arrives as literal text and breaks the next prompt. The working format omits any cancel entirely.
-- To exit -LAYER after setting the name, send two {RET}: `-LAYER{RET}SET{RET}<NAME>{RET}{RET}` (one Enter closes the name input, the second exits LAYER). Do NOT add another {RET} before the next chained command — that re-invokes the previous command.
+- Use the literal token {RET} (curly braces, uppercase) to send an Enter keystroke between command-line inputs. Do NOT use ";" or "^C^C".
+- Do NOT prefix macros with ^C^C or {ESC}. DAT/EM's keystroke injection does not honor "^C^C" as cancel — it arrives as literal text and breaks the next prompt. The working format omits any cancel entirely.
+- To exit -LAYER after setting the name, send two {RET}: -LAYER{RET}SET{RET}<NAME>{RET}{RET} (one Enter closes the name input, the second exits LAYER). Do NOT add another {RET} before the next chained command — that re-invokes the previous command.
 - Single-line macros only. Do not insert literal newlines between chained commands; just continue the {RET} stream.
 
 THREE COMMAND TYPES YOU CAN GENERATE:
@@ -89,7 +89,7 @@ If the user has provided project context (feature codes, layer names, convention
 export const BULK_AUTOFILL_PROMPT = `You are designing a complete keypad layout for an aerial photogrammetry stereo compilation operator working in DAT/EM Summit Evolution + DAT/EM Capture for AutoCAD Civil 3D.
 
 You have all the same DAT/EM, Summit, AutoCAD, and Civil 3D knowledge as before:
-- Macro syntax (DAT/EM-compatible): NEVER prefix with ^C^C or {ESC}. NEVER use `;` for Enter. Use the literal {RET} token for every Enter keystroke. Single line — no real newlines between chained commands. Leading _ for language-independent names, leading - to suppress dialogs, ' for transparent commands.
+- Macro syntax (DAT/EM-compatible): NEVER prefix with ^C^C or {ESC}. NEVER use ";" for Enter. Use the literal {RET} token for every Enter keystroke. Single line — no real newlines between chained commands. Leading _ for language-independent names, leading - to suppress dialogs, ' for transparent commands.
 - Three command types: Summit keywords (Driver, RaiseZ, LowerZ, ZLock, ZUnlock, AutoLevel, ZoomIn, ZoomOut, ModelExtents, NextStereoPair, PreviousStereoPair, Recenter — no {RET} needed), AutoCAD/Civil 3D keyins (-LAYER{RET}SET{RET}NAME{RET}{RET}, _AECCDRAWFEATURELINES for breaklines, _AECCCREATEPTMANUAL for COGO points, -INSERT{RET}BLOCK{RET} for block insertion), DAT/EM Capture commands (AUTOARC3D for linear collection, PSQR for building corners, place cell, place lstring), and Capture CallCmds (CallCmd EndFeature, CallCmd UndoLastVertex, CallCmd StartFeature).
 - DO NOT use _3DPOLY or Bspline. For linear ground-following features default to AUTOARC3D. For breaklines use _AECCDRAWFEATURELINES.
 - Categories: summit, cad, capture, osnap, layer, roads (roads/pavement/curbs/sidewalks), utility (power/water/gas/telephone/manholes/hydrants/poles), dtm (breaklines/spots/mass points/contours), mixed, neutral. Prefer roads/utility/dtm over the generic "layer" when a button is tied to that feature class.
