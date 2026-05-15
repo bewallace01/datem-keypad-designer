@@ -331,11 +331,17 @@ export function buttonFromBlock(block, opts = {}) {
   const rotation = parseFloat(opts.rotation);
   const label = compressBlockName(block.name);
 
-  // Insert chain — the trailing `;` leaves AutoCAD at the insertion-point
-  // prompt for the operator's click.
-  let insert = `-INSERT{RET}${block.name}{RET}`;
-  if (scale && scale !== 1) insert += `S{RET}${scale}{RET}`;
-  if (rotation) insert += `R{RET}${rotation}{RET}`;
+  // Insert chain. Bake scale (S) and rotation (R) as preset options BEFORE
+  // the insertion-point prompt so the macro places on a single click with
+  // no follow-up scale/rotation prompts. Defaults to scale=1 rotation=0
+  // when the user didn't specify in the block-config modal — even
+  // 1/0 are emitted so the operator never sees the after-click prompts.
+  const finalScale = scale && !isNaN(scale) ? scale : 1;
+  const finalRotation = rotation && !isNaN(rotation) ? rotation : 0;
+  const insert =
+    `-INSERT{RET}${block.name}{RET}` +
+    `S{RET}${finalScale}{RET}` +
+    `R{RET}${finalRotation}{RET}`;
 
   const cmds = layer === "0"
     ? insert

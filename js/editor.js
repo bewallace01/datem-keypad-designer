@@ -7,6 +7,7 @@ import { generateButton } from "./ai.js";
 import { lintMacro } from "./lint.js";
 import { fileToBmp, bytesToDataUrl, makeBitmapName } from "./bmp.js";
 import { openDrawIcon } from "./draw.js";
+import { parseInsertMacro, makeStaticInsert, makeRepeatInsert } from "./lbplace.js";
 
 let editing = null; // { row, col }
 let openSnapshot = null;
@@ -56,6 +57,7 @@ export function openEdit(row, col) {
   renderColorRow(btn.color);
   renderBitmapPreview();
   renderLint();
+  refreshRepeatToggle();
 
   // Reset AI section
   document.getElementById("aiPrompt").value = "";
@@ -114,6 +116,41 @@ function renderLint() {
   el.innerHTML = warnings.map((w) =>
     `<div class="lint-item lint-${w.level}"><span class="lint-icon">${w.level === "warn" ? "⚠" : "ⓘ"}</span><span>${escapeForHtml(w.msg)}</span></div>`
   ).join("");
+}
+
+// Show the "Repeat placement" checkbox only when the current Commands
+// value is recognizably a block-insert macro (either the static
+// `-LAYER…-INSERT…S…R…` shape or the LBPLACE shape). Sync the checked
+// state to the macro form.
+function refreshRepeatToggle() {
+  const row = document.getElementById("fRepeatRow");
+  const cb = document.getElementById("fRepeat");
+  if (!row || !cb) return;
+  const parsed = parseInsertMacro(document.getElementById("fCommands").value);
+  if (!parsed) {
+    row.style.display = "none";
+    return;
+  }
+  row.style.display = "";
+  cb.checked = parsed.form === "repeat";
+}
+
+// Convert between the static -INSERT and LBPLACE forms when the user
+// toggles the checkbox. Layer, block, scale, and rotation values are
+// preserved across the swap (so a user-tuned scale=2 or rotation=45
+// survives flipping the mode).
+function onRepeatToggle() {
+  const cb = document.getElementById("fRepeat");
+  const ta = document.getElementById("fCommands");
+  const parsed = parseInsertMacro(ta.value);
+  if (!parsed) {
+    refreshRepeatToggle();
+    return;
+  }
+  ta.value = cb.checked
+    ? makeRepeatInsert(parsed)
+    : makeStaticInsert(parsed);
+  renderLint();
 }
 
 function escapeForHtml(s) {
@@ -250,8 +287,21 @@ export async function generateCommand() {
 // Insert example commands and chip handling
 // =========================================================================
 export function attachExampleClicks() {
-  // Live-relint the editor on changes to the macro or header flag.
-  document.getElementById("fCommands").addEventListener("input", renderLint);
+  // Live-relint the editor on changes to the macro or header flag. Also
+  // refresh the "Repeat placement" toggle visibility — manual edits to
+  // the textarea can make a macro look like an -INSERT (or stop looking
+  // like one), and we want the toggle row to track that.
+  document.getElementById("fCommands").addEventListener("input", () => {
+    renderLint();
+    refreshRepeatToggle();
+  });
+  // Toggle between static -INSERT and LBPLACE forms.
+  document.getElementById("fRepeat").addEventListener("change", onRepeatToggle);
+  // "show the LISP" link in the toggle's help line opens the modal that
+  // displays the LBPLACE.lsp source for copy/download.
+  document.getElementById("fRepeatHelpBtn").addEventListener("click", () => {
+    window.openLbplaceModal && window.openLbplaceModal();
+  });
   // When the user marks a button as a section header, snap to a 2x1
   // rectangle — section headers read best as a thin, wide label bar above the
   // section they mark. Width only grows when the cell to the right is free;

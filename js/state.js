@@ -73,6 +73,21 @@ export function normalizeMacro(commands) {
   //   LC=<n>{RET}  active line code (style)
   // Strip them — the chained drawing command after `LV=…` still runs.
   s = s.replace(/\b(?:CO|WT|LC)=[^{}\s]*\{RET\}/gi, "");
+  // Microstation cell-placement: `AS=<cellname>{RET}place cell{RET}` or
+  // `AC=<cellname>{RET}place cell{RET}` sets the active symbol/cell then
+  // places it. Convert both to the AutoCAD `-INSERT{RET}<cellname>{RET}…`
+  // form with scale and rotation PRE-BAKED so the macro lands the block
+  // on a single insertion-point click with no follow-up prompts. AutoCAD
+  // accepts `S{RET}<n>{RET}` and `R{RET}<deg>{RET}` as preset options at
+  // the insertion-point prompt; once both are set, the prompt loops back
+  // and waits for the click, then places immediately. To override the
+  // default scale (1) or rotation (0), edit the values in the Commands
+  // textarea — they're in plain sight at the end of the macro.
+  s = s.replace(/\b(?:AS|AC)="([^"]+)"\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}S{RET}1{RET}R{RET}0{RET}");
+  s = s.replace(/\b(?:AS|AC)=([^{}\s"]+?)\{RET\}place cell\{RET\}/gi, "-INSERT{RET}$1{RET}S{RET}1{RET}R{RET}0{RET}");
+  // Orphan AS=/AC=<value>{RET} (active-symbol/cell set without a following
+  // `place cell`) is dead text on the AutoCAD host. Strip.
+  s = s.replace(/\b(?:AS|AC)=[^{}\n]*?\{RET\}/gi, "");
   // Microstation level-set key-in. Two shapes:
   //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
   //   LV=<name>{RET}                  bare
@@ -80,19 +95,35 @@ export function normalizeMacro(commands) {
   // equivalent — same semantic, runs through AutoCAD's command line on
   // current Summit installs. Quoted names keep their quotes in the output
   // so AutoCAD parses the name verbatim (it accepts quoted layer names).
-  s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, '-LAYER{RET}SET{RET}"$1"{RET}{RET}');
+  // Microstation level-set key-in. Two shapes:
+  //   LV="<name with spaces>"{RET}   quoted (Microstation/V8 spaced names)
+  //   LV=<name>{RET}                  bare
+  // Convert both to the AutoCAD `-LAYER{RET}SET{RET}<name>{RET}{RET}`
+  // equivalent — same semantic, runs through AutoCAD's command line on
+  // current Summit installs. Quotes around the source name are dropped
+  // (the user's working keypad format never has them); if the level had
+  // an embedded space the user will rename the layer to a valid AutoCAD
+  // identifier afterwards.
+  s = s.replace(/\bLV="([^"]+)"\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   s = s.replace(/\bLV=([^{}\n]+?)\{RET\}/gi, "-LAYER{RET}SET{RET}$1{RET}{RET}");
   // Strip Microstation drawing key-ins that don't exist on the AutoCAD host.
-  // DAT/EM Capture's `place cell` / `place lstring` (a.k.a `place line string`)
-  // share the same command name across hosts, so they're explicitly NOT in
-  // this list. The user adds the feature-appropriate AutoCAD/DAT-EM tool
-  // (PSQR2D, AUTOARC3D, -INSERT{RET}BLOCK{RET}, …) after the level-set by
-  // hand — wrong default would silently break a different way.
+  // DAT/EM Capture's `place lstring` / `place line string` share the same
+  // command name across hosts, so they're NOT in this list. The user adds
+  // the feature-appropriate AutoCAD/DAT-EM tool (PSQR2D, AUTOARC3D,
+  // -INSERT{RET}BLOCK{RET}, …) after the level-set by hand — wrong default
+  // would silently break a different way.
+  //
+  // `place cell` is in the strip list as a fallback: the
+  // AS=<name>{RET}place cell{RET} pair was already converted to
+  // -INSERT{RET}<name>{RET} above; anything labeled `place cell{RET}` that
+  // reaches here is an orphan with no cell name and would do nothing on
+  // AutoCAD anyway.
   const MICROSTATION_DRAW_KEY_INS = [
     "place active shape",
     "place active line",
     "place active text",
     "place active point",
+    "place active cell",
     "place shape",
     "place line",
     "place text",
@@ -105,6 +136,14 @@ export function normalizeMacro(commands) {
     "place block",
     "place ellipse",
     "place fence",
+    "place cell",
+    // DAT/EM-for-Microstation cell-placement modifiers. AutoCAD's
+    // `-INSERT` handles its own scale/rotation prompts; these modes
+    // are dead text on the AutoCAD host.
+    "twoshot angle",
+    "twoshot scale",
+    "twoshot",
+    "oneshot",
   ];
   for (const cmd of MICROSTATION_DRAW_KEY_INS) {
     const re = new RegExp(`\\b${cmd.replace(/[.*+?^${}()|[\\]/g, "\\$&")}\\{RET\\}`, "gi");
