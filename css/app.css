@@ -212,7 +212,6 @@ main { display: flex; overflow: hidden; position: relative; }
   box-shadow: var(--shadow-lg);
 }
 .key {
-  aspect-ratio: 1;
   min-width: 72px;
   background: var(--bg-elev-2);
   border: 1px solid var(--border);

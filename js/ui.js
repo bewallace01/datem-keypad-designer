@@ -98,7 +98,13 @@ export function refreshProjectSelect() {
 function renderKeypad() {
   const p = curr();
   const grid = document.getElementById("keypad");
-  grid.style.gridTemplateColumns = `repeat(${p.cols}, minmax(72px, 88px))`;
+  // Match column and row tracks so 1x1 cells stay square AND multi-cell
+  // spans render as true rectangles. The previous setup used aspect-ratio:1
+  // on each .key, which made a 2x1 header span 2 cells wide and then forced
+  // its height to match — visually a 2x2 square, not a 2x1 rectangle.
+  const trackSize = "minmax(72px, 88px)";
+  grid.style.gridTemplateColumns = `repeat(${p.cols}, ${trackSize})`;
+  grid.style.gridAutoRows = trackSize;
   grid.innerHTML = "";
   const owner = cellOwnerMap(p);
   for (let r = 0; r < p.rows; r++) {
