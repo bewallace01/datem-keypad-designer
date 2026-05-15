@@ -1644,16 +1644,16 @@ async function generateLayers() {
     status.innerHTML = '<span class="spinner"></span>Extracting layers via Claude…';
     const layers = await extractLayersFromPdf({ pdfText, keypadLayers, projectContext });
 
-    // Collapse Microstation hierarchical names from the AI output to the
-    // short trailing abbreviation, then dedupe by sanitized name
-    // (case-insensitive). A layer is tagged as `fromPdf` whenever the AI
-    // returned it (we passed the PDF text to the model) — NOT only when
-    // it's absent from the keypad. That way layers that exist in BOTH
-    // sources surface with the "both" tag in the preview, instead of
-    // silently being classified as keypad-only.
+    // Dedupe by sanitized name. Tagging now follows Claude's per-layer
+    // `source` field ("pdf" / "keypad" / "both") instead of inferring
+    // from the input. Cross-check against the keypad list for accuracy:
+    // even if Claude says "pdf", if the name DOES match a keypad button
+    // we know it's actually "both" — Claude sometimes misses that.
     const seen = new Set();
     const aiReturnedFromPdf = pdfText.length > 0;
     let aiReturnedCount = 0;
+    let pdfTaggedCount = 0;
+    let bothTaggedCount = 0;
     genLayersResult = [];
     for (const l of layers) {
       const rawName = (l.name || "").trim();
@@ -1665,14 +1665,23 @@ async function generateLayers() {
       seen.add(key);
       aiReturnedCount++;
       const longSuffix = shortened !== rawName ? ` · was ${rawName}` : "";
+      const claudeSource = (l.source || "").toLowerCase();
+      const keypadHas = keypadLayers.includes(name);
+      // Trust Claude's claim that a layer is in the PDF. Cross-check the
+      // keypad side ourselves so "both" is only set when the name really
+      // is referenced by a button.
+      const claudeSaysPdf = claudeSource === "pdf" || claudeSource === "both";
+      const fromPdf = aiReturnedFromPdf && claudeSaysPdf;
+      if (fromPdf && keypadHas) bothTaggedCount++;
+      else if (fromPdf) pdfTaggedCount++;
       genLayersResult.push({
         name,
         color: Number.isInteger(l.color) ? l.color : 7,
         linetype: typeof l.linetype === "string" && l.linetype ? l.linetype : "CONTINUOUS",
         lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
         description: (l.description || "") + longSuffix,
-        keypadReferenced: keypadLayers.includes(name),
-        fromPdf: aiReturnedFromPdf,
+        keypadReferenced: keypadHas,
+        fromPdf,
       });
     }
     // Also surface any keypad-referenced layer the AI dropped on the floor.
@@ -1701,8 +1710,10 @@ async function generateLayers() {
 
     const keypadOnlyCount = genLayersResult.length - aiReturnedCount;
     const parts = [];
-    parts.push(`${aiReturnedCount} from ${pdfText.length > 0 ? "PDF" : "keypad"}`);
+    if (pdfTaggedCount > 0) parts.push(`${pdfTaggedCount} PDF-only`);
+    if (bothTaggedCount > 0) parts.push(`${bothTaggedCount} in both`);
     if (keypadOnlyCount > 0) parts.push(`${keypadOnlyCount} keypad-only`);
+    if (!parts.length) parts.push(`${genLayersResult.length} total`);
     status.textContent = `✓ ${genLayersResult.length} layer${genLayersResult.length === 1 ? "" : "s"} ready (${parts.join(", ")}).`;
     status.className = "ai-status success";
   } catch (e) {
