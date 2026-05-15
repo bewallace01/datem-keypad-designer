@@ -1608,6 +1608,7 @@ function openGenLayers() {
   document.getElementById("genLayersResult").style.display = "none";
   document.getElementById("genLayersList").innerHTML = "";
   document.getElementById("genLayersDownloadBtn").disabled = true;
+  document.getElementById("genLayersDownloadBundleBtn").disabled = true;
   document.getElementById("genLayersDownloadDxfBtn").disabled = true;
   genLayersResult = [];
   openModal("genLayersModal");
@@ -1625,6 +1626,7 @@ async function generateLayers() {
   status.className = "ai-status";
   document.getElementById("genLayersResult").style.display = "none";
   document.getElementById("genLayersDownloadBtn").disabled = true;
+  document.getElementById("genLayersDownloadBundleBtn").disabled = true;
   document.getElementById("genLayersDownloadDxfBtn").disabled = true;
 
   try {
@@ -1711,6 +1713,7 @@ async function generateLayers() {
     document.getElementById("genLayersResult").style.display = "block";
     const hasResults = genLayersResult.length > 0;
     document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
+    document.getElementById("genLayersDownloadBundleBtn").disabled = !hasResults;
     document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
 
     const keypadOnlyCount = genLayersResult.length - aiReturnedCount;
@@ -1774,6 +1777,43 @@ function downloadLayersLisp() {
   const lisp = buildLayerLisp(genLayersResult, { projectName: curr().name || "" });
   downloadBlob("LOADLAYERS.lsp", "text/plain", lisp);
   toast(`Downloaded ${genLayersResult.length} layers as LISP — APPLOAD it in AutoCAD, then type LOADLAYERS`);
+}
+
+// One-click ".zip with everything" — LBPLACE.lsp (repeat block placer,
+// loaded permanently) + LOADLAYERS.lsp (layer creator, run once per
+// template). Plus a short README so the user knows what each one is.
+function downloadLayersBundle() {
+  if (!genLayersResult.length) return;
+  const loadLayersLisp = buildLayerLisp(genLayersResult, { projectName: curr().name || "" });
+  const readme =
+    `KEYPAD_LISPS bundle\n` +
+    `Project: ${curr().name || "(unnamed)"}\n` +
+    `Generated: ${new Date().toISOString().slice(0, 10)}\n\n` +
+    `Two AutoLISP files for Civil 3D 2018+ / AutoCAD 2018+:\n\n` +
+    `1. LBPLACE.lsp\n` +
+    `   Repeat-click block placement. Keypad buttons with the\n` +
+    `   "Repeat placement" toggle on call this routine.\n` +
+    `   SETUP: APPLOAD -> Load -> Add to Startup Suite (briefcase icon).\n` +
+    `   Loads automatically every session after that.\n\n` +
+    `2. LOADLAYERS.lsp\n` +
+    `   Creates all the project layers in the current drawing in one\n` +
+    `   shot. Run ONCE on a blank drawing, then File -> Save As ->\n` +
+    `   DWG Template (*.dwt) to lock the layer table.\n` +
+    `   SETUP: APPLOAD -> Load. No need to add to Startup Suite.\n` +
+    `   USE: at the command line, type LOADLAYERS -> Enter.\n\n` +
+    `RECOMMENDED LOCATION: C:\\DATEM\\Lisp\\\n` +
+    `Add that folder to Civil 3D's Trusted Locations:\n` +
+    `  OPTIONS -> Files tab -> Trusted Locations -> Add -> pick folder.\n`;
+  const enc = new TextEncoder();
+  const entries = [
+    { name: "LBPLACE.lsp", data: enc.encode(LBPLACE_LISP) },
+    { name: "LOADLAYERS.lsp", data: enc.encode(loadLayersLisp) },
+    { name: "README.txt", data: enc.encode(readme) },
+  ];
+  const zipBytes = buildZip(entries);
+  const stem = projectFilenameStem();
+  downloadBlob(`${stem}_KEYPAD_LISPS.zip`, "application/zip", zipBytes);
+  toast("Downloaded both LISPs as a .zip — unzip into C:\\DATEM\\Lisp\\");
 }
 
 function downloadLayersDxf() {
@@ -1868,5 +1908,6 @@ Object.assign(window, {
   openGenLayers,
   generateLayers,
   downloadLayersLisp,
+  downloadLayersBundle,
   downloadLayersDxf,
 });
