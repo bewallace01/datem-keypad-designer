@@ -305,6 +305,7 @@
     </div>
     <footer>
       <button onclick="closeModal('genLayersModal')">Close</button>
+      <button id="genLayersCreateButtonsBtn" onclick="createLayersAsButtons()" disabled title="Drop a keypad button for each layer in the next empty cells. Skips layers already referenced by an existing button.">Create keypad buttons</button>
       <button id="genLayersDownloadBtn" onclick="downloadLayersLisp()" class="primary" disabled>Download .lsp</button>
       <button id="genLayersDownloadBundleBtn" onclick="downloadLayersBundle()" disabled>Both LISPs (.zip)</button>
       <button id="genLayersDownloadDxfBtn" onclick="downloadLayersDxf()" disabled>…or .dxf</button>
