@@ -146,23 +146,27 @@ export function detectLayerFilterPatterns(layers) {
 }
 
 // Build an AutoLISP routine that creates every layer via -LAYER N in the
-// current drawing, then attaches Property Filters by status / feature
-// pattern to the Layer Properties Manager. AutoCAD/Civil 3D applies it
-// identically on any version (no DXF spec quirks). Workflow:
+// current drawing. AutoCAD/Civil 3D applies it identically on any version
+// (no DXF spec quirks). Workflow:
 //   1. Save the output as LOADLAYERS.lsp
 //   2. In AutoCAD: APPLOAD → pick it → Load
-//   3. Type LOADLAYERS at the command line → layers + filters are created
-//   4. File → Save As → DWG Template (*.dwt) → done
+//   3. Type LOADLAYERS at the command line → layers are created
+//   4. Manually create filters in Layer Properties Manager from the
+//      printed pattern list (or skip — colors alone are still useful).
+//   5. File → Save As → DWG Template (*.dwt) → done
 //
 // `command` is a special form in AutoLISP and cannot be applied directly
 // via (vl-catch-all-apply 'command …) — modern AutoCAD throws
 // "bad order function: COMMAND" if you try. Wrap it inside a lambda and
 // apply that lambda instead.
 //
-// Filters are created via vla-AddObject on the ACAD_LAYERFILTERS
-// dictionary; the call is wrapped in vl-catch-all-apply so if the
-// installed AutoCAD version doesn't expose that path the layer creation
-// still succeeds and only the filter step is skipped.
+// Filter creation used to be automated here, but modern AutoCAD stores
+// filters as an XML blob on the LayerTable's extension dictionary (NOT
+// the ACAD_LAYERFILTERS named dictionary), and emitting that format
+// from AutoLISP without an AutoCAD instance to test against is too
+// fragile. LOADLAYERS now PRINTS the recommended patterns at the end of
+// its run so the user can paste them into the Layer Properties Manager
+// (right-click tree pane → New Property Filter → paste name + pattern).
 export function buildLayerLisp(layers, { projectName = "", filterPatterns = null } = {}) {
   const stamp = new Date().toISOString().slice(0, 10);
   const patterns = filterPatterns || detectLayerFilterPatterns(layers);
@@ -170,56 +174,25 @@ export function buildLayerLisp(layers, { projectName = "", filterPatterns = null
     `;; LOADLAYERS.lsp — auto-generated layer loader`,
     `;; Project: ${projectName || "(unnamed)"}`,
     `;; Generated: ${stamp}`,
-    `;; ${layers.length} layer${layers.length === 1 ? "" : "s"}, ${patterns.length} filter${patterns.length === 1 ? "" : "s"}`,
+    `;; ${layers.length} layer${layers.length === 1 ? "" : "s"}, ${patterns.length} suggested filter pattern${patterns.length === 1 ? "" : "s"}`,
     `;;`,
     `;; Usage:`,
     `;;   1. In AutoCAD/Civil 3D, run APPLOAD → load this file.`,
     `;;   2. At the command line, type LOADLAYERS → Enter.`,
-    `;;   3. File → Save As → DWG Template (*.dwt) to lock the layer table`,
-    `;;      and Property Filters into a project template.`,
+    `;;   3. (Optional) Read the printed filter patterns, then create them`,
+    `;;      manually: open LAYER → left tree pane → right-click → New`,
+    `;;      Property Filter → paste name and pattern.`,
+    `;;   4. File → Save As → DWG Template (*.dwt) to lock the layer table`,
+    `;;      (and any filters you created) into a project template.`,
     ``,
     `(defun add-layer (name color / err)`,
     `  (setq err (vl-catch-all-apply`,
     `              (function (lambda () (command "-LAYER" "N" name "C" color name "")))))`,
     `  (not (vl-catch-all-error-p err)))`,
     ``,
-    `;; Add a Property Filter to the Layer Properties Manager. AutoCAD's`,
-    `;; ACAD_LAYERFILTERS dictionary holds these as Xrecords; the format`,
-    `;; needs the full set of DXF codes (1 name, 2 layer pattern,`,
-    `;; 3 linetype pattern, 4 plot style, 6 description, 62 color, 290`,
-    `;; plot flag, 70 filter type=1). Wrapped in vl-catch-all-apply so a`,
-    `;; bad call doesn't abort the run; if it fails we print the error so`,
-    `;; the user can report it back.`,
-    `(defun add-property-filter (fname pattern / fdict ent result)`,
-    `  (setq result`,
-    `    (vl-catch-all-apply`,
-    `      (function (lambda ()`,
-    `        (setq fdict (dictsearch (namedobjdict) "ACAD_LAYERFILTERS"))`,
-    `        (if (not fdict)`,
-    `          (progn`,
-    `            (dictadd (namedobjdict) "ACAD_LAYERFILTERS"`,
-    `              (entmakex (list (cons 0 "DICTIONARY") (cons 100 "AcDbDictionary"))))`,
-    `            (setq fdict (dictsearch (namedobjdict) "ACAD_LAYERFILTERS"))))`,
-    `        (setq ent (entmakex`,
-    `          (list (cons 0 "XRECORD")`,
-    `                (cons 100 "AcDbXrecord")`,
-    `                (cons 280 1)`,
-    `                (cons 1 fname)`,
-    `                (cons 2 pattern)`,
-    `                (cons 3 "*")`,
-    `                (cons 4 "*")`,
-    `                (cons 6 "")`,
-    `                (cons 62 0)`,
-    `                (cons 290 0)`,
-    `                (cons 70 1))))`,
-    `        (if ent (dictadd (cdr (assoc -1 fdict)) fname ent))))))`,
-    `  (if (vl-catch-all-error-p result)`,
-    `    (progn (princ (strcat "\\nFilter '" fname "' failed: " (vl-catch-all-error-message result))) nil)`,
-    `    T))`,
-    ``,
-    `(defun c:LOADLAYERS ( / made failed fmade ffailed *error*)`,
+    `(defun c:LOADLAYERS ( / made failed *error*)`,
     `  (defun *error* (msg) (princ (strcat "\\nError: " msg)) (princ))`,
-    `  (setq made 0 failed 0 fmade 0 ffailed 0)`,
+    `  (setq made 0 failed 0)`,
     `  (princ "\\nCreating layers...")`,
   ];
   for (const layer of layers) {
@@ -232,23 +205,24 @@ export function buildLayerLisp(layers, { projectName = "", filterPatterns = null
       `      (setq made (1+ made)) (setq failed (1+ failed)))`,
     );
   }
-  if (patterns.length) {
-    lines.push(``, `  (princ "\\nCreating filters...")`);
-    for (const p of patterns) {
-      const safeFname = p.name.replace(/"/g, '\\"');
-      const safePattern = p.pattern.replace(/"/g, '\\"');
-      lines.push(
-        `  (if (add-property-filter "${safeFname}" "${safePattern}")`,
-        `      (setq fmade (1+ fmade)) (setq ffailed (1+ ffailed)))`,
-      );
-    }
-  }
   lines.push(
     `  (princ (strcat "\\n" (itoa made) " layer(s) created"`,
     `                  (if (> failed 0) (strcat ", " (itoa failed) " failed") "")`,
-    `                  (if (> fmade 0)  (strcat "; " (itoa fmade) " filter(s) created") "")`,
-    `                  (if (> ffailed 0) (strcat ", " (itoa ffailed) " filter(s) failed (manual create needed)") "")`,
     `                  ". Save As DWG Template to lock the layer table."))`,
+  );
+  if (patterns.length) {
+    lines.push(
+      ``,
+      `  (princ "\\n\\nRecommended Property Filters to create manually in the Layer Properties Manager:")`,
+      `  (princ "\\n  (right-click left tree pane -> New Property Filter -> enter name and Layer name pattern)")`,
+    );
+    for (const p of patterns) {
+      const safeName = p.name.replace(/"/g, '\\"');
+      const safePattern = p.pattern.replace(/"/g, '\\"');
+      lines.push(`  (princ "\\n    ${safeName.padEnd(12)}  pattern: ${safePattern}")`);
+    }
+  }
+  lines.push(
     `  (princ))`,
     ``,
     `(princ "\\nLOADLAYERS loaded. Type LOADLAYERS to run.")`,
