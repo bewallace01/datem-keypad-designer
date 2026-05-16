@@ -1765,8 +1765,25 @@ function renderGenLayersList() {
         : `<span class="gen-layer-tag gen-layer-tag-pdf">PDF</span>`;
     const swatch = `<span class="gen-layer-swatch" style="background:${aciToHex(l.color)}" title="ACI ${l.color}"></span>`;
     const desc = l.description ? `<span class="gen-layer-desc">${escapeHtml(l.description)}</span>` : "";
-    return `<div class="gen-layer-row">${swatch}<strong>${escapeHtml(l.name)}</strong>${sourceTag}${desc}</div>`;
+    const safeName = l.name.replace(/'/g, "&#39;");
+    const del = `<button class="gen-layer-del" onclick="deleteGenLayer('${safeName}')" title="Remove this layer from the export">×</button>`;
+    return `<div class="gen-layer-row">${swatch}<strong>${escapeHtml(l.name)}</strong>${sourceTag}${desc}${del}</div>`;
   }).join("");
+}
+
+// Drop a single layer from the preview before download. The list is re-
+// rendered and the result count + download-button state refresh. No
+// confirm — easy to re-run Generate if the user nukes the wrong one.
+function deleteGenLayer(name) {
+  const before = genLayersResult.length;
+  genLayersResult = genLayersResult.filter((l) => l.name !== name);
+  if (genLayersResult.length === before) return;
+  renderGenLayersList();
+  document.getElementById("genLayersCount").textContent = String(genLayersResult.length);
+  const hasResults = genLayersResult.length > 0;
+  document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
+  document.getElementById("genLayersDownloadBundleBtn").disabled = !hasResults;
+  document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
 }
 
 // Coarse AutoCAD Color Index -> hex for the preview swatch only. Values 1-7
@@ -1928,6 +1945,7 @@ Object.assign(window, {
   downloadLbplaceLisp,
   openGenLayers,
   generateLayers,
+  deleteGenLayer,
   downloadLayersLisp,
   downloadLayersBundle,
   downloadLayersDxf,
