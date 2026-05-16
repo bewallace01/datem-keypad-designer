@@ -132,10 +132,10 @@ export function buildLayerDxf(layers) {
 //   3. Type LOADLAYERS at the command line → layers are created
 //   4. File → Save As → DWG Template (*.dwt) → done
 //
-// Each layer entry uses the form
-//   (command "-LAYER" "N" <name> "C" <color> <name> "")
-// Wrapped in vl-catch-all-apply so a single bad layer doesn't abort the
-// whole run (the *error* handler reports counts at the end).
+// `command` is a special form in AutoLISP and cannot be applied directly
+// via (vl-catch-all-apply 'command …) — modern AutoCAD throws
+// "bad order function: COMMAND" if you try. Wrap it inside a lambda and
+// apply that lambda instead.
 export function buildLayerLisp(layers, { projectName = "" } = {}) {
   const stamp = new Date().toISOString().slice(0, 10);
   const lines = [
@@ -149,6 +149,11 @@ export function buildLayerLisp(layers, { projectName = "" } = {}) {
     `;;   2. At the command line, type LOADLAYERS → Enter.`,
     `;;   3. File → Save As → DWG Template (*.dwt) to lock the layer table`,
     `;;      into a project template.`,
+    ``,
+    `(defun add-layer (name color / err)`,
+    `  (setq err (vl-catch-all-apply`,
+    `              (function (lambda () (command "-LAYER" "N" name "C" color name "")))))`,
+    `  (not (vl-catch-all-error-p err)))`,
     ``,
     `(defun c:LOADLAYERS ( / made failed *error*)`,
     `  (defun *error* (msg) (princ (strcat "\\nError: " msg)) (princ))`,
@@ -164,8 +169,8 @@ export function buildLayerLisp(layers, { projectName = "" } = {}) {
     // double quote (sanitizeLayerName strips them) but defense in depth.
     const safeName = name.replace(/"/g, '\\"');
     lines.push(
-      `  (if (vl-catch-all-error-p (vl-catch-all-apply 'command (list "-LAYER" "N" "${safeName}" "C" "${color}" "${safeName}" "")))`,
-      `      (setq failed (1+ failed)) (setq made (1+ made)))`,
+      `  (if (add-layer "${safeName}" ${color})`,
+      `      (setq made (1+ made)) (setq failed (1+ failed)))`,
     );
   }
   lines.push(
