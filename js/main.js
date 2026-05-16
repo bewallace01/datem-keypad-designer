@@ -1628,6 +1628,7 @@ function openGenLayers() {
   document.getElementById("genLayersStatus").className = "ai-status";
   document.getElementById("genLayersResult").style.display = "none";
   document.getElementById("genLayersList").innerHTML = "";
+  document.getElementById("genLayersCreateButtonsBtn").disabled = true;
   document.getElementById("genLayersDownloadBtn").disabled = true;
   document.getElementById("genLayersDownloadBundleBtn").disabled = true;
   document.getElementById("genLayersDownloadDxfBtn").disabled = true;
@@ -1646,6 +1647,7 @@ async function generateLayers() {
   status.textContent = "";
   status.className = "ai-status";
   document.getElementById("genLayersResult").style.display = "none";
+  document.getElementById("genLayersCreateButtonsBtn").disabled = true;
   document.getElementById("genLayersDownloadBtn").disabled = true;
   document.getElementById("genLayersDownloadBundleBtn").disabled = true;
   document.getElementById("genLayersDownloadDxfBtn").disabled = true;
@@ -1733,6 +1735,7 @@ async function generateLayers() {
     document.getElementById("genLayersCount").textContent = String(genLayersResult.length);
     document.getElementById("genLayersResult").style.display = "block";
     const hasResults = genLayersResult.length > 0;
+    document.getElementById("genLayersCreateButtonsBtn").disabled = !hasResults;
     document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
     document.getElementById("genLayersDownloadBundleBtn").disabled = !hasResults;
     document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
@@ -1781,6 +1784,7 @@ function deleteGenLayer(name) {
   renderGenLayersList();
   document.getElementById("genLayersCount").textContent = String(genLayersResult.length);
   const hasResults = genLayersResult.length > 0;
+  document.getElementById("genLayersCreateButtonsBtn").disabled = !hasResults;
   document.getElementById("genLayersDownloadBtn").disabled = !hasResults;
   document.getElementById("genLayersDownloadBundleBtn").disabled = !hasResults;
   document.getElementById("genLayersDownloadDxfBtn").disabled = !hasResults;
@@ -1808,6 +1812,59 @@ function downloadBlob(filename, mime, content) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Drop a keypad button for each layer in the result that isn't already
+// referenced by an existing button. Buttons get a `-LAYER{RET}SET{RET}
+// <name>{RET}{RET}<tool>` macro where <tool> is inferred from the name
+// (PSQR2D for buildings, AUTOARC3D for linears, etc. — same logic the
+// DXF importer uses for layer buttons). New buttons land in empty cells
+// in row-major order, starting from row 0; the grid auto-expands by
+// rows if there isn't enough space.
+async function createLayersAsButtons() {
+  if (!genLayersResult.length) return;
+  const p = curr();
+  // Skip layers already in use by a button
+  const usedLayers = new Set(extractLayerNamesFromProject(p));
+  const toAdd = genLayersResult.filter((l) => !usedLayers.has(l.name));
+  if (!toAdd.length) {
+    toast("Every layer is already on a keypad button — nothing to add.");
+    return;
+  }
+
+  recordChange();
+
+  const isCellFree = (row, col) => {
+    if (col >= p.cols) return false;
+    const owner = cellOwnerMap(p);
+    return !owner[`${row},${col}`];
+  };
+
+  let added = 0;
+  let row = 0;
+  let col = 0;
+  for (const layer of toAdd) {
+    // Find next empty cell
+    while (true) {
+      if (col >= p.cols) { col = 0; row++; }
+      if (row >= p.rows) {
+        // Grow the grid by one row
+        p.rows++;
+      }
+      if (isCellFree(row, col)) break;
+      col++;
+    }
+    const key = `${row},${col}`;
+    // buttonFromLayer expects { name } shape (the DXF layer object)
+    const btn = buttonFromLayer({ name: layer.name }, { includeDrawingTool: true, linkedBlock: null });
+    p.buttons[key] = btn;
+    added++;
+    col++;
+  }
+
+  await persist();
+  renderAll();
+  toast(`Added ${added} button${added === 1 ? "" : "s"} (skipped ${genLayersResult.length - toAdd.length} already-referenced).`);
 }
 
 function downloadLayersLisp() {
@@ -1946,6 +2003,7 @@ Object.assign(window, {
   openGenLayers,
   generateLayers,
   deleteGenLayer,
+  createLayersAsButtons,
   downloadLayersLisp,
   downloadLayersBundle,
   downloadLayersDxf,
