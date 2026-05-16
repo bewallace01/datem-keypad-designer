@@ -1599,6 +1599,27 @@ async function doImport() {
 // =========================================================================
 let genLayersResult = []; // populated by generateLayers(), consumed by downloadLayersDxf()
 
+// Auto-assign an AutoCAD Color Index from a layer name when the AI fell
+// back to the default (7). A non-7 number from Claude is preserved — that
+// came from the PDF spec and we trust it. Categories roughly match the
+// keypad's own color palette (drainage = blue, roads = yellow, etc.) so
+// the .dwt's color story lines up with the keypad colors.
+function autoAssignLayerColor(layerName, claudeColor) {
+  if (Number.isInteger(claudeColor) && claudeColor !== 7) return claudeColor;
+  const n = (layerName || "").toUpperCase();
+  if (/(?:^|[-_])(?:DRAIN|DITCH|RIP-?RAP|CULVERT|STORM|INLET|MH|MNHL|MANHOLE|HYDRO|WATER|PIPE)(?:[-_]|$)/.test(n)) return 5;
+  if (/(?:^|[-_])(?:ROAD|PAVE|CURB|EOP|DRIVE|PARKING|PAINT|STRIPE|MARKING)(?:[-_]|$)/.test(n)) return 2;
+  if (/(?:^|[-_])(?:BLDG|BUILD|STRUC|FOUND|DECK|PORCH|PATIO|SHED|GARAGE)(?:[-_]|$)/.test(n)) return 1;
+  if (/(?:^|[-_])(?:BREAK|GROUND|GRADE|SPOT|CONTOUR|DTM|RIDGE)(?:[-_]|$)/.test(n)) return 3;
+  if (/(?:^|[-_])(?:TREE|VEG|GRASS|SHRUB|WOODS)(?:[-_]|$)/.test(n)) return 92;
+  if (/(?:^|[-_])(?:POLE|UTIL|POWER|TELE|GAS|FIBER|LIGHT|SIGN)(?:[-_]|$)/.test(n)) return 6;
+  if (/(?:^|[-_])(?:ANNO|TEXT|LABEL|DIM|HATCH)(?:[-_]|$)/.test(n)) return 8;
+  if (/^E[-_]/.test(n)) return 251;
+  if (/^F[-_]/.test(n)) return 6;
+  if (/^P[-_]/.test(n)) return 4;
+  return 7;
+}
+
 function openGenLayers() {
   document.getElementById("genLayersPdf").value = "";
   document.getElementById("genLayersPdfStatus").textContent =
@@ -1682,7 +1703,7 @@ async function generateLayers() {
       else pdfTaggedCount++;
       genLayersResult.push({
         name,
-        color: Number.isInteger(l.color) ? l.color : 7,
+        color: autoAssignLayerColor(name, Number.isInteger(l.color) ? l.color : 7),
         linetype: typeof l.linetype === "string" && l.linetype ? l.linetype : "CONTINUOUS",
         lineweight: Number.isInteger(l.lineweight) ? l.lineweight : -3,
         description: (l.description || "") + longSuffix,
@@ -1698,7 +1719,7 @@ async function generateLayers() {
       seen.add(clean.toLowerCase());
       genLayersResult.push({
         name: clean,
-        color: 7,
+        color: autoAssignLayerColor(clean, 7),
         linetype: "CONTINUOUS",
         lineweight: -3,
         description: "",
